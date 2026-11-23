@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # A safe Codespaces bootstrap. This never downloads the commercial game.
-# Usage: bash web/tools/gt4-codespace.sh check|build|run [--data GAME_DIR] [--port 8080]
+# Usage: bash web/tools/gt4-codespace.sh check|prepare|build|run [--data GAME_DIR] [--port 8080]
 set -eo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-MODE="$1"
-if [ -z "$MODE" ]; then MODE=check; else shift; fi
+MODE="${1:-check}"
+if [ "$#" -gt 0 ]; then shift; fi
 GAME="$ROOT/.nfsu2-local/game"
 if [ -n "$NFSU2_DATA" ]; then GAME="$NFSU2_DATA"; fi
 PORT=8080
@@ -16,6 +16,7 @@ usage() {
 cat <<'EOF'
 NFSU2 GT4 Web — Codespaces (Linux x86_64, no local Windows admin)
   bash web/tools/gt4-codespace.sh check [--data GAME_DIR]
+  bash web/tools/gt4-codespace.sh prepare  # install free build tools, no game needed
   bash web/tools/gt4-codespace.sh build [--data GAME_DIR]
   bash web/tools/gt4-codespace.sh run   [--data GAME_DIR] [--port 8080]
 Keep your legally obtained Underground 2 PC v1.2 NA installation in
@@ -25,7 +26,7 @@ When running in Codespaces, forward port 8080 from the Ports panel.
 EOF
 }
 if [ "$MODE" = --help ] || [ "$MODE" = -h ]; then usage; exit 0; fi
-case "$MODE" in check|build|run) ;; *) usage >&2; exit 2 ;; esac
+case "$MODE" in check|prepare|build|run) ;; *) usage >&2; exit 2 ;; esac
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --data) if [ "$#" -lt 2 ]; then echo "Missing --data value" >&2; exit 2; fi; GAME="$2"; shift 2 ;;
@@ -48,11 +49,11 @@ if command -v node >/dev/null 2>&1; then
   major="$(node -p 'process.versions.node.split(".")[0]')"
   if (( major < 20 )); then echo "[gt4] Node 20+ required, found $major"; error=1; fi
 fi
-if [ ! -f "$GAME/SPEED2.EXE" ]; then
+if [ "$MODE" != prepare ] && [ ! -f "$GAME/SPEED2.EXE" ]; then
   echo "[gt4] Missing game executable: $GAME/SPEED2.EXE"
   echo "[gt4] Supply your licensed original game files outside tracked directories."
   error=1
-else
+elif [ "$MODE" != prepare ]; then
   actual_size="$(wc -c < "$GAME/SPEED2.EXE" | tr -d ' ')"
   actual_hash="$(sha256sum "$GAME/SPEED2.EXE" | cut -d' ' -f1)"
   if [ "$actual_size" != "$SIZE" ] || [ "$actual_hash" != "$SHA256" ]; then
@@ -85,6 +86,12 @@ echo "[gt4] Preparing build dependencies."
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 (cd web && npm ci --no-audit --no-fund)
+if [ "$MODE" = prepare ]; then
+  echo "[gt4] Checking and building the open-source browser interface (no game needed)."
+  (cd web && npm run check && npm run build)
+  echo "[gt4] Ready for your compatible game files. To verify: bash web/tools/gt4-codespace.sh check"
+  exit 0
+fi
 echo "[gt4] Generating and compiling WASM from the owner's compatible executable."
 web/gen.sh "$GAME/SPEED2.EXE"
 if [ -z "$J" ]; then export J=2; fi
