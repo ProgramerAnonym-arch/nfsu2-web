@@ -38,6 +38,14 @@ O comando informa os nomes na raiz, identifica indícios de um disco instalador 
 python3 web/tools/gt4-media-doctor.py ".nfsu2-local/game"
 ```
 
+Para analisar os arquivos de controle do instalador, incluindo o manifesto `COMMON_FILELIST.TXT` e os primeiros 64 bytes de `BIN.DAT`, execute:
+
+```bash
+python3 web/tools/gt4-media-doctor.py ".nfsu2-local/NFSUG2_DISK1.iso" --installer-info
+```
+
+O comando não executa `SETUP.EXE`, não monta a ISO e não extrai os arquivos. A assinatura de `BIN.DAT` é apenas um indício de formato, não uma verificação completa. As linhas de `COMMON_FILELIST.TXT` são limitadas para evitar saída excessiva.
+
 Nesse segundo caso, verifica a presença de pastas essenciais, o tamanho e o SHA-256 do `SPEED2.EXE`. **Código de saída 2 significa que a mídia ainda não está pronta; não indica um erro de execução do jogo.** O verificador lê apenas metadados da ISO; não verifica malware, licenças, integridade da instalação completa, nem oferece suporte a toda imagem UDF/Joliet. Não substitui o comando `check` nem executa instaladores.
 
 **Não tente contornar bloqueios do Controle Inteligente de Aplicativos do Windows.** O diagnóstico pode ser feito no Linux do Codespaces quando o arquivo for transferido privadamente. Mantenha a pasta `.nfsu2-local` fora do Git.
