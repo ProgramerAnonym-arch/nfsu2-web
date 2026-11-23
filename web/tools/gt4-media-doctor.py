@@ -233,6 +233,34 @@ def inspect_installer(path, index):
     print('[mídia] Nenhum instalador foi executado e nenhum arquivo foi extraído.')
 
 
+
+def inspect_executable(path, index):
+    """Hash the disc's root executable by streaming its ISO extent, without extracting it."""
+    exe_record = next(((name, start, length) for name, (start, length, is_dir) in index.items()
+                       if not is_dir and name.upper() == 'SPEED2.EXE'), None)
+    if exe_record is None:
+        print('[mídia] SPEED2.EXE não está presente na raiz desta mídia.')
+        return False
+    name, start, length = exe_record
+    digest = hashlib.sha256()
+    header = b''
+    with path.open('rb') as f:
+        view = BoundedView(f, start, length)
+        header = view.read(32)
+        digest.update(header)
+        while chunk := view.read(1024 * 1024):
+            digest.update(chunk)
+    actual_hash = digest.hexdigest()
+    print(f'[mídia] SPEED2.EXE: {length} bytes, SHA-256 {actual_hash}')
+    print('[mídia] Assinatura inicial: ' + header[:8].hex(' '))
+    if length == EXPECTED_SIZE and actual_hash == EXPECTED_HASH:
+        print('[mídia] Executável compatível com a referência exigida pelo fork.')
+        return True
+    print(f'[mídia] Executável diferente da referência: {EXPECTED_SIZE} bytes, SHA-256 {EXPECTED_HASH}.')
+    print('[mídia] Arquivo de jogo não foi modificado, executado ou extraído.')
+    return False
+
+
 def game_directory(path):
     if not path.exists():
         print(f'[mídia] Pasta ainda não existe: {path}')
@@ -269,7 +297,7 @@ def game_directory(path):
     return 0
 
 
-def media_iso(path, archives=False, details=False, installer_info=False):
+def media_iso(path, archives=False, details=False, installer_info=False, exe_info=False):
     print(f'[mídia] Imagem: {path.name} ({path.stat().st_size // 1048576} MiB)')
     index = iso_index(path)
     names = list(index)
@@ -290,6 +318,8 @@ def media_iso(path, archives=False, details=False, installer_info=False):
         inspect_archives(path, index, details=details)
     if installer_info:
         inspect_installer(path, index)
+    if exe_info:
+        inspect_executable(path, index)
     print('[mídia] A análise não executou, montou nem extraiu nenhum arquivo.')
     return 2  # ISO is not yet an installed game folder.
 
@@ -300,12 +330,13 @@ def main():
     parser.add_argument('--archives', action='store_true', help='Examinar apenas o índice dos arquivos ZIP contidos na ISO, sem extrair')
     parser.add_argument('--details', action='store_true', help='Listar nomes e tamanhos de até 200 entradas dos arquivos ZIP (usar com --archives)')
     parser.add_argument('--installer-info', action='store_true', help='Ler parcialmente COMMON_FILELIST.TXT e o cabeçalho de BIN.DAT sem executar ou extrair')
+    parser.add_argument('--exe-info', action='store_true', help='Verificar tamanho e SHA-256 de SPEED2.EXE diretamente na imagem ISO, sem extrair')
     args = parser.parse_args()
     p = Path(args.path).expanduser()
     try:
         if p.is_dir() or not p.exists():
             return game_directory(p)
-        return media_iso(p, archives=args.archives or args.details, details=args.details, installer_info=args.installer_info)
+        return media_iso(p, archives=args.archives or args.details, details=args.details, installer_info=args.installer_info, exe_info=args.exe_info)
     except (OSError, ValueError) as exc:
         print(f'[mídia] Não foi possível analisar: {exc}', file=sys.stderr)
         return 2
