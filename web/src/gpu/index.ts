@@ -75,6 +75,8 @@ export interface RendererOptions {
   pixelatedDump?: boolean;
   /** anisotropic filtering where the game asks for it (Encoder.aniso) */
   aniso?: boolean;
+  /** Browser-only color treatment; 'original' keeps the existing direct-render path. */
+  colorGrade?: 'original' | 'studio';
   /** tests: an autotest dump labelled <name>_af also writes its frame drawn again with anisotropic filtering the other
    *  way (Encoder.aniso), <name>_af1: the same moment both ways */
   anisoDump?: boolean;
@@ -233,7 +235,9 @@ export async function attachRenderer(proc: GameProcess, canvas: HTMLCanvasElemen
   // screenshots a third to a half black, the rest of the picture half drawn).  From
   // the back buffer the canvas gets each picture whole, in one copy (0 of 25).
   const firefox = /\bFirefox\//.test(navigator.userAgent);
-  const direct = canvasFormat === 'bgra8unorm' && (opts.direct ?? !firefox);
+  const studio = opts.colorGrade === 'studio';
+  // Studio samples the game back buffer, so it cannot draw directly to the canvas.
+  const direct = canvasFormat === 'bgra8unorm' && (opts.direct ?? !firefox) && !studio;
   const canvasUsage = GPUTextureUsage.RENDER_ATTACHMENT
     | (direct ? GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST : 0);
   try { ctx.configure({ device, format: canvasFormat, alphaMode: 'opaque', usage: canvasUsage }); }
@@ -268,6 +272,7 @@ export async function attachRenderer(proc: GameProcess, canvas: HTMLCanvasElemen
   if (enc.pointTex) log('[gpu] pixelated textures');
   enc.aniso = !!opts.aniso;
   if (enc.aniso) log('[gpu] anisotropic filtering where the game asks for it');
+  if (studio) log('[gpu] Studio color treatment: WebGPU composite enabled');
   for (const id of opts.watchTex ?? []) enc.watchTex.add(id);
   if (opts.trace === 'dumps') enc.traceDumps = true; else for (const f of opts.trace ?? []) enc.traceSeq.add(f);
   // pipelines of earlier sessions, created asynchronously as their shaders arrive
@@ -620,7 +625,8 @@ export async function attachRenderer(proc: GameProcess, canvas: HTMLCanvasElemen
         pic.show(ce, cur.createView(), canvasFormat, one ? nearest : linear, rect, look, tone, tsEnd);
       }
       // the back buffer's own view: its bind group is made once (Encoder.copyBg), not every frame
-      else if (tone) enc.toneQuad(ce, enc.screenView!, cur.createView(), canvasFormat, one ? nearest : linear, tone, rect, tsEnd);
+      else if (tone || studio) enc.toneQuad(ce, enc.screenView!, cur.createView(), canvasFormat, one ? nearest : linear,
+        tone ?? [1, 1, 0], rect, tsEnd, studio);
       else enc.copyQuad(ce, enc.screenView!, cur.createView(), canvasFormat, one ? nearest : linear, rect, true, tsEnd);
     }
     if (slot >= 0) {
