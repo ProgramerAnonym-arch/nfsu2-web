@@ -113,7 +113,7 @@ Em **Ports** do Codespaces, mantenha a porta **8080 privada** e abra a URL de en
 
 Se durante a geração do WASM aparecer `ConnectionResetError: [Errno 104] Connection reset by peer` junto de `web/gen.sh: flagabi.py failed`, isso pode ser causado por excesso de processos em relação aos limites do Codespaces. O script original usava `multiprocessing.Pool(mp.cpu_count())`, que em contêineres pode retornar o número de CPUs do host e iniciar processos demais.
 
-O auxiliar `gt4-codespace.sh` agora limita **a dois processos Python** na análise/lifting (`NFSU2_LIFT_WORKERS=2`) e **dois trabalhos de compilação** (`J=2`). O compilador de runtime em `web/build.sh` respeita esse limite em vez de lançar todos os arquivos de uma vez.
+O auxiliar `gt4-codespace.sh` agora usa **um único trabalhador Python, em modo sequencial e sem processos auxiliares** (`NFSU2_LIFT_WORKERS=1`), para evitar o `forkserver` que falhou no Python 3.14. A compilação C/C++ continua limitada por `J=2`. Para múltiplos trabalhadores Python, `tools/liftpool.py` escolhe explicitamente o método `fork` quando disponível, sem depender da mudança de padrão no Python 3.14.
 
 Após atualizar a branch, basta executar novamente:
 
@@ -122,13 +122,13 @@ git pull --ff-only origin nfsu2-gt4-web
 bash web/tools/gt4-codespace.sh run --port 8080
 ```
 
-Se o erro persistir com recursos restritos, reduza para apenas um processo de cada tipo:
+Se aparecer outra falha de compilação ou de memória, use o modo mais conservador (um processo de geração e um compilador):
 
 ```bash
 NFSU2_LIFT_WORKERS=1 J=1 bash web/tools/gt4-codespace.sh run --port 8080
 ```
 
-Esses ajustes **não alteram os dados do jogo nem a ISO**; o levantamento anterior de endereços de relocação pode ser repetido. O erro pode ter outras causas: se persistir com `1`, examine o início e o fim de `out/flagabi.log`, o resultado de `free -h` e `df -h .` no Codespaces antes de modificar o restante.
+Esses ajustes **não alteram os dados do jogo nem a ISO**; o levantamento anterior de endereços de relocação pode ser repetido. O erro pode ter outras causas: se persistir em modo sequencial, examine o início e o fim de `out/flagabi.log` e os limites reais do contêiner com `cat /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.events /sys/fs/cgroup/pids.max 2>/dev/null`; `free -h` pode mostrar a memória do host e não o limite efetivo do Codespaces. Não interprete disponibilidade de disco como disponibilidade de memória.
 
 ## Passo 5 — Critérios de jogabilidade
 
