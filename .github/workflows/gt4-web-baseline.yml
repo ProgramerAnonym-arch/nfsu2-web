@@ -52,7 +52,7 @@ jobs:
       - name: Validate bounded code-generation and runtime build scripts
         shell: bash
         run: |
-          bash -n web/gen.sh web/build.sh web/tools/gt4-codespace.sh
+          for script in web/gen.sh web/build.sh web/tools/gt4-codespace.sh; do bash -n "$script"; done
           python3 -m py_compile tools/flagabi.py tools/genall.py
           grep -q 'NFSU2_LIFT_WORKERS' tools/flagabi.py
           grep -q 'NFSU2_LIFT_WORKERS' tools/genall.py
