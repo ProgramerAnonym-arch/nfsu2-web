@@ -49,6 +49,18 @@ jobs:
           fi
           cat /tmp/gt4-doctor.txt
           grep -q 'Missing game executable:' /tmp/gt4-doctor.txt
+      - name: Validate bounded code-generation and runtime build scripts
+        shell: bash
+        run: |
+          bash -n web/gen.sh web/build.sh web/tools/gt4-codespace.sh
+          python3 -m py_compile tools/flagabi.py tools/genall.py
+          grep -q 'NFSU2_LIFT_WORKERS' tools/flagabi.py
+          grep -q 'NFSU2_LIFT_WORKERS' tools/genall.py
+          grep -q 'runtime_launch' web/build.sh
+          if grep -q 'mp.Pool(mp.cpu_count()' tools/flagabi.py tools/genall.py; then
+            echo 'Unbounded worker pool detected'
+            exit 1
+          fi
       - name: Test read-only ISO and game-data diagnostics with synthetic files
         run: python3 -m unittest discover -s web/test -p 'test_gt4*.py' -v
       - name: Exercise Codespaces open-source preparation without game data
