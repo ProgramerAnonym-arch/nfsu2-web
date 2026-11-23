@@ -72,3 +72,15 @@ Verification: branch CI typechecks the browser, bundles its JS/CSS and tests set
 `web/test/studio-gpu.test.mjs` runs the actual `TONE` WGSL shader on a synthetic (non-game) test texture through Chromium/WebGPU. It checks that Original preserves colors, Studio makes measurable but bounded changes, and alpha remains opaque. On a successful GitHub Actions run, the pictures are attached as `studio-gpu-synthetic-comparison`, containing `original.png` and `studio.png`.
 
 This proves the shader compiles and operates on **synthetic data in the test browser only**. It is not equivalent to validating the game engine or real Bayview assets, nor is it a hardware performance benchmark. The browser test lives in the slow group: ordinary `npm run test:fast` remains independent of an installed browser.
+
+## Verified synthetic GPU result (2026-11-23)
+
+GitHub Actions [run 45118567981](https://github.com/ProgramerAnonym-arch/nfsu2-web/actions/runs/45118567981) passed the TypeScript check, page bundling, isolated graphics tests, and **the project's actual Studio WGSL shader executed on Chromium software WebGPU**.
+
+For the controlled synthetic test texture: Original pixel maximum error was **0**; Studio changed **51,968** RGB channel samples; its maximum channel delta was **8** (8-bit scale). Both alpha channels remained opaque. The workflow artifact `studio-gpu-synthetic-comparison` contains actual `original.png` and `studio.png` captured from shader output. These are synthetic gradients, not screenshots from Bayview or actual cars.
+
+## Codespaces bootstrap
+
+`web/tools/gt4-codespace.sh` provides `check`, `build`, and `run` actions. The owner can place a legally obtained NA v1.2 game installation under `.nfsu2-local/game` (ignored by Git) or use `--data PATH`. It checks executable size and SHA-256, prepares Python/Node tooling and downloads the official wasi-sdk 34 into `deps/` if absent, then builds and starts the Rust-backed Web server on the specified forwarded port. Default compilation concurrency is 2 to avoid stressing a small Codespace. The script does not acquire game files and was not used to compile the game at this stage.
+
+Security boundary: keep the Codespaces port **private** during development, especially when using commercial game assets. Grant access to test users only where their use is authorized. Do not publish or upload the original files or game-derived binaries to the public GitHub repository.
