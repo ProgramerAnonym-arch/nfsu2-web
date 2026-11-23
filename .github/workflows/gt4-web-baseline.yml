@@ -44,7 +44,7 @@ jobs:
         run: npm run build
         working-directory: web
       - name: Run isolated graphics and settings tests
-        run: node --test test/viewport.test.mjs test/photolook.test.mjs test/rendercheck.test.mjs test/prefs.test.mjs
+        run: node --test test/viewport.test.mjs test/photolook.test.mjs test/rendercheck.test.mjs test/prefs.test.mjs test/studio-grade.test.mjs
         working-directory: web
       - name: Summarize verified scope
         if: always()
