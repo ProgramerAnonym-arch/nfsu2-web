@@ -16,12 +16,23 @@ const { TONE } = await import('data:text/javascript;base64,' +
   Buffer.from(bundled.outputFiles[0].text).toString('base64'));
 
 test('Studio shader compiles and renders original and graded pictures in Chromium WebGPU', { timeout: 120000 }, async () => {
-  const browser = await chromium.launch({ headless: true, args: [
-    '--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader',
-    '--enable-dawn-features=allow_unsafe_apis', '--disable-vulkan-surface',
+  const browser = await chromium.launch({ headless: true, channel: 'chromium', args: [
+    '--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=vulkan',
+    '--use-vulkan=swiftshader', '--use-webgpu-adapter=swiftshader',
+    '--enable-unsafe-swiftshader', '--enable-dawn-features=allow_unsafe_apis',
+    '--disable-vulkan-surface',
   ] });
   try {
     const page = await browser.newPage();
+    // WebGPU only exists in a secure context; localhost is a secure origin.
+    // Route the request inside Playwright so no service or game server is needed.
+    await page.route('http://127.0.0.1:9184/**', route => route.fulfill({
+      status: 200, contentType: 'text/html', body: '<!doctype html><title>Studio GPU test</title>',
+    }));
+    await page.goto('http://127.0.0.1:9184/test');
+    const context = await page.evaluate(() => ({secure: isSecureContext, gpu: !!navigator.gpu, url: location.href}));
+    assert.equal(context.secure, true, 'WebGPU test must use a secure localhost context');
+    assert.equal(context.gpu, true, 'WebGPU API unavailable: ' + JSON.stringify(context));
     const output = await page.evaluate(async code => {
       if (!navigator.gpu) throw new Error('navigator.gpu unavailable in Chromium');
       const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'low-power' });
