@@ -52,29 +52,29 @@ Nesse segundo caso, verifica a presença de pastas essenciais, o tamanho e o SHA
 
 ## Preparação opcional a partir dos dois discos originais
 
-Depois de carregar ambos os discos em \`.nfsu2-local/\`, confirme a versão do executável no Disco 2 **sem extrair nem executá-lo**:
+Depois de carregar ambos os discos em `.nfsu2-local/`, confirme a versão do executável no Disco 2 **sem extrair nem executá-lo**:
 
-\`\`\`bash
+```bash
 python3 web/tools/gt4-media-doctor.py ".nfsu2-local/NFSUG2_DISK2.iso" --exe-info
-\`\`\`
+```
 
 Para fazer apenas um levantamento dos arquivos disponíveis e da ocupação estimada de disco, sem criar nenhum arquivo:
 
-\`\`\`bash
+```bash
 python3 web/tools/gt4-install-discs.py \
   ".nfsu2-local/NFSUG2_DISK1.iso" ".nfsu2-local/NFSUG2_DISK2.iso"
-\`\`\`
+```
 
-Quando quiser montar a pasta local privada usando apenas os arquivos fornecidos, sem executar \`SETUP.EXE\`, repita com \`--install\`:
+Quando quiser montar a pasta local privada usando apenas os arquivos fornecidos, sem executar `SETUP.EXE`, repita com `--install`:
 
-\`\`\`bash
+```bash
 python3 web/tools/gt4-install-discs.py \
   ".nfsu2-local/NFSUG2_DISK1.iso" ".nfsu2-local/NFSUG2_DISK2.iso" --install
-\`\`\`
+```
 
-O processo lê os diretórios ISO-9660 e os arquivos \`COMPRESSED.ZIP\` internos, combina os dados, preserva \`SPEED2.EXE\` como arquivo de dados e descarta os programas auxiliares do instalador. A ordem importa: primeiro o Disco 1, depois o Disco 2. Ele escreve exclusivamente em \`.nfsu2-local/game\` por padrão, não modifica as ISOs, não executa nenhum instalador e **não remove a proteção nem transforma automaticamente o executável em uma versão suportada**. A extração pode consumir mais de 1 GiB. O comando termina com código diferente de zero quando a verificação do jogo falha; isso não significa, por si só, que a extração tenha sido interrompida.
+O processo lê os diretórios ISO-9660 e os arquivos `COMPRESSED.ZIP` internos, combina os dados, preserva `SPEED2.EXE` como arquivo de dados e descarta os programas auxiliares do instalador. A ordem importa: primeiro o Disco 1, depois o Disco 2. Ele escreve exclusivamente em `.nfsu2-local/game` por padrão, não modifica as ISOs, não executa nenhum instalador e **não remove a proteção nem transforma automaticamente o executável em uma versão suportada**. A extração pode consumir mais de 1 GiB. O comando termina com código diferente de zero quando a verificação do jogo falha; isso não significa, por si só, que a extração tenha sido interrompida.
 
-Se o \`SPEED2.EXE\` não tiver o hash esperado, **não prossiga para \`build\` ou \`run\`**. Os dados ainda podem estar completos, mas a recompilação exige a versão específica indicada abaixo; não tente modificar o executável por caminhos não autorizados.
+Se o `SPEED2.EXE` não tiver o hash esperado, **não prossiga para `build` ou `run`**. Os dados ainda podem estar completos, mas a recompilação exige a versão específica indicada abaixo; não tente modificar o executável por caminhos não autorizados.
 
 ## Passo 3 — Colocar seus arquivos legítimos no Codespace
 
