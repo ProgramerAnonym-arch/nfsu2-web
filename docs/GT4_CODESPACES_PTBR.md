@@ -20,7 +20,7 @@ Se você tiver alterações locais não salvas, não as descarte: preserve-as an
 bash web/tools/gt4-codespace.sh prepare
 ```
 
-O comando testa as ferramentas já disponíveis, instala em pastas locais o ambiente Python e WASI SDK 34, instala as dependências npm e verifica/compila **a interface Web**. Ele **não** compila o jogo original, não inicia Bayview e não baixa conteúdo da EA. Um Codespace padrão baseado em Linux x86_64 com Python 3, Node.js 20+, Rust/Cargo, curl e tar é o alvo.
+O comando testa as ferramentas já disponíveis e, se faltarem `rustc` e `cargo`, instala automaticamente a toolchain oficial Rust via `rustup` em `~/.cargo/`, **sem `sudo`**. Também prepara em pastas locais o Python e o WASI SDK 34, instala as dependências npm e verifica/compila **a interface Web**. Ele **não** compila o jogo original, não inicia Bayview e não baixa conteúdo da EA. Um Codespace Linux x86_64 com Python 3, Node.js 20+, `curl` e `tar` é o alvo. O modo `check` é apenas diagnóstico: não instala ferramentas.
 
 O Windows local **não precisa de acesso de administrador** para este fluxo em nuvem.
 
