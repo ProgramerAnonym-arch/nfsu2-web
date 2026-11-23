@@ -16,7 +16,7 @@ usage() {
 cat <<'EOF'
 NFSU2 GT4 Web — Codespaces (Linux x86_64, no local Windows admin)
   bash web/tools/gt4-codespace.sh check [--data GAME_DIR]
-  bash web/tools/gt4-codespace.sh prepare  # install free build tools, no game needed
+  bash web/tools/gt4-codespace.sh prepare  # installs missing Rust and WASI tools without sudo; no game needed
   bash web/tools/gt4-codespace.sh build [--data GAME_DIR]
   bash web/tools/gt4-codespace.sh run   [--data GAME_DIR] [--port 8080]
 Keep your legally obtained Underground 2 PC v1.2 NA installation in
@@ -44,7 +44,15 @@ need() {
   if ! command -v "$1" >/dev/null 2>&1; then echo "[gt4] Missing tool: $1"; error=1
   else echo "[gt4] Tool available: $1"; fi
 }
-for cmd in python3 node npm rustc cargo sha256sum; do need "$cmd"; done
+# Rustup installs into the home directory, not into the system toolchain.
+# A newly opened terminal may not have ~/.cargo/bin in PATH yet.
+export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+export PATH="$CARGO_HOME/bin:$PATH"
+for cmd in python3 node npm sha256sum; do need "$cmd"; done
+if [ "$MODE" = check ]; then
+  need rustc
+  need cargo
+fi
 if command -v node >/dev/null 2>&1; then
   major="$(node -p 'process.versions.node.split(".")[0]')"
   if (( major < 20 )); then echo "[gt4] Node 20+ required, found $major"; error=1; fi
@@ -65,8 +73,31 @@ fi
 if (( error )); then echo "[gt4] Preflight incomplete; no build started."; exit 1; fi
 if [ "$MODE" = check ]; then echo "[gt4] Preflight passed."; exit 0; fi
 if [ "$(uname -s)" != Linux ] || [ "$(uname -m)" != x86_64 ]; then
-  echo "[gt4] Automated wasi-sdk bootstrap supports Linux x86_64 only." >&2; exit 2
+  echo "[gt4] Automated toolchain bootstrap supports Linux x86_64 only." >&2; exit 2
 fi
+# For prepare/build/run, install missing Rust and Cargo without sudo.
+# 'check' remains diagnostic-only and never changes the Codespace.
+if ! command -v rustc >/dev/null 2>&1 || ! command -v cargo >/dev/null 2>&1; then
+  echo "[gt4] Rust/Cargo not found. Installing the official Rust toolchain in $CARGO_HOME (no sudo)."
+  need curl
+  if (( error )); then exit 1; fi
+  if command -v rustup >/dev/null 2>&1; then
+    rustup toolchain install stable --profile minimal
+    rustup default stable
+  else
+    installer="$(mktemp)"
+    trap 'rm -f "$installer"' EXIT
+    curl --proto '=https' --tlsv1.2 -fsSL --retry 3 https://sh.rustup.rs -o "$installer"
+    sh "$installer" -y --profile minimal --default-toolchain stable --no-modify-path
+    rm -f "$installer"
+    trap - EXIT
+  fi
+fi
+need rustc
+need cargo
+if (( error )); then echo "[gt4] Rust toolchain installation failed." >&2; exit 1; fi
+rustc --version
+cargo --version
 if ! compgen -G "$ROOT/deps/wasi-sdk-34*/bin/clang" >/dev/null; then
   need curl; need tar; if (( error )); then exit 1; fi
   mkdir -p deps
