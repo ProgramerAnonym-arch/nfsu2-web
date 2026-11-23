@@ -154,7 +154,8 @@ def inspect_archives(path, index, details=False):
                     paths = [(normalized(m), m) for m in members]
                     roots = sorted({p.split('/')[0] for p, _ in paths if p})
                     prefixes = Counter(p.split('/')[0] for p, _ in paths if p and not p.endswith('/'))
-                    samples = [p for p, _ in paths if p.upper().startswith(
+                    samples = [p for p, _ in paths if any(
+                        fragment in p.upper() for fragment in
                         ('CARS/', 'GLOBAL/', 'SOUND/', 'TRACKS/'))]
                     executable = [p for p, _ in paths if p.split('/')[-1].upper() == 'SPEED2.EXE']
                     total = sum(m.file_size for _, m in paths if not m.is_dir())
