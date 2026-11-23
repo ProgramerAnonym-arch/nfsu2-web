@@ -179,6 +179,60 @@ def inspect_archives(path, index, details=False):
         print(f'[mídia] Outros {len(archives) - 8} arquivos ZIP não examinados.')
 
 
+
+def inspect_installer(path, index):
+    """Display bounded metadata for installer files, without executing them."""
+    files = {name.upper(): (name, start, length) for name, (start, length, is_dir)
+             in index.items() if not is_dir and '/' not in name}
+    with path.open('rb') as backing:
+        for target in ('COMMON_FILELIST.TXT', 'BIN.DAT'):
+            found = files.get(target)
+            if found is None:
+                print(f'[mídia] {target}: não está na raiz da ISO.')
+                continue
+            name, start, length = found
+            print(f'[mídia] {name}: {length} bytes no disco.')
+            view = BoundedView(backing, start, length)
+            if target == 'BIN.DAT':
+                data = view.read(64)
+                print('[mídia] BIN.DAT cabeçalho hexadecimal (até 64 bytes): ' + data.hex(' '))
+                safe_ascii = ''.join(chr(c) if 32 <= c <= 126 else '.' for c in data)
+                print('[mídia] BIN.DAT cabeçalho ASCII aproximado: ' + safe_ascii)
+                if data[:2] == b'PK':
+                    print('[mídia] BIN.DAT começa com assinatura PK, mas formato completo não foi verificado.')
+                elif data[:2] == b'MZ':
+                    print('[mídia] BIN.DAT começa com assinatura MZ; não execute esse arquivo.')
+                else:
+                    print('[mídia] O formato de BIN.DAT ainda é desconhecido.')
+                continue
+
+            limit = min(length, 512 * 1024)
+            data = view.read(limit)
+            if data.startswith((b'\xff\xfe', b'\xfe\xff')):
+                encoding = 'utf-16'
+            elif data.count(b'\x00') > max(4, len(data) // 5):
+                encoding = 'utf-16-le'
+            else:
+                encoding = 'utf-8-sig'
+            decoded = data.decode(encoding, errors='replace')
+            print(f'[mídia] COMMON_FILELIST.TXT: analisados {len(data)} de {length} bytes ({encoding}).')
+            def safe_line(raw):
+                cleaned = ''.join(c if c.isprintable() and c not in '\x1b\x7f' else ' ' for c in raw)
+                return cleaned.strip()[:240]
+            lines = [safe_line(line) for line in decoded.splitlines() if safe_line(line)]
+            needles = ('SPEED2', 'SERVER.DLL', 'COMMON', 'CARS', 'GLOBAL', 'TRACKS', 'DISK', 'DISC')
+            matches = [line for line in lines if any(word in line.upper() for word in needles)]
+            print('[mídia] Primeiras linhas do manifesto:')
+            for line in lines[:12]:
+                print('[mídia]   ' + line)
+            print(f'[mídia] Linhas relevantes encontradas: {len(matches)} (exibindo até 25).')
+            for line in matches[:25]:
+                print('[mídia]   ' + line)
+            if length > limit:
+                print('[mídia] Atenção: manifesto truncado para análise segura.')
+    print('[mídia] Nenhum instalador foi executado e nenhum arquivo foi extraído.')
+
+
 def game_directory(path):
     if not path.exists():
         print(f'[mídia] Pasta ainda não existe: {path}')
@@ -215,7 +269,7 @@ def game_directory(path):
     return 0
 
 
-def media_iso(path, archives=False, details=False):
+def media_iso(path, archives=False, details=False, installer_info=False):
     print(f'[mídia] Imagem: {path.name} ({path.stat().st_size // 1048576} MiB)')
     index = iso_index(path)
     names = list(index)
@@ -234,6 +288,8 @@ def media_iso(path, archives=False, details=False):
             print('[mídia] Não há pastas de jogo na raiz: ' + ', '.join(missing))
     if archives:
         inspect_archives(path, index, details=details)
+    if installer_info:
+        inspect_installer(path, index)
     print('[mídia] A análise não executou, montou nem extraiu nenhum arquivo.')
     return 2  # ISO is not yet an installed game folder.
 
@@ -243,12 +299,13 @@ def main():
     parser.add_argument('path', nargs='?', default='.nfsu2-local/game', help='Pasta do jogo ou arquivo .iso')
     parser.add_argument('--archives', action='store_true', help='Examinar apenas o índice dos arquivos ZIP contidos na ISO, sem extrair')
     parser.add_argument('--details', action='store_true', help='Listar nomes e tamanhos de até 200 entradas dos arquivos ZIP (usar com --archives)')
+    parser.add_argument('--installer-info', action='store_true', help='Ler parcialmente COMMON_FILELIST.TXT e o cabeçalho de BIN.DAT sem executar ou extrair')
     args = parser.parse_args()
     p = Path(args.path).expanduser()
     try:
         if p.is_dir() or not p.exists():
             return game_directory(p)
-        return media_iso(p, archives=args.archives or args.details, details=args.details)
+        return media_iso(p, archives=args.archives or args.details, details=args.details, installer_info=args.installer_info)
     except (OSError, ValueError) as exc:
         print(f'[mídia] Não foi possível analisar: {exc}', file=sys.stderr)
         return 2
