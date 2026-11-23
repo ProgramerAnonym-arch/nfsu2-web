@@ -37,6 +37,18 @@ jobs:
       - name: Install browser build dependencies
         run: npm ci
         working-directory: web
+      - name: Validate Codespaces helper without game assets
+        shell: bash
+        run: |
+          bash -n web/tools/gt4-codespace.sh
+          bash web/tools/gt4-codespace.sh --help
+          git check-ignore -q .nfsu2-local/game/SPEED2.EXE
+          if bash web/tools/gt4-codespace.sh check --data /definitely-missing-game-dir > /tmp/gt4-doctor.txt 2>&1; then
+            echo "Expected a nonzero result without user-provided game assets"
+            exit 1
+          fi
+          cat /tmp/gt4-doctor.txt
+          grep -q 'Missing game executable:' /tmp/gt4-doctor.txt
       - name: Typecheck TypeScript
         run: npm run check
         working-directory: web
