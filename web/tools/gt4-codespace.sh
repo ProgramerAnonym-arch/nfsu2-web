@@ -123,9 +123,17 @@ if [ "$MODE" = prepare ]; then
   echo "[gt4] Ready for your compatible game files. To verify: bash web/tools/gt4-codespace.sh check"
   exit 0
 fi
+# The container can expose the host CPU count while limiting available RAM.
+# Keep both Python lifter workers and WASM compiler jobs bounded by default.
+export NFSU2_LIFT_WORKERS="${NFSU2_LIFT_WORKERS:-2}"
+export J="${J:-2}"
+if ! [[ "$NFSU2_LIFT_WORKERS" =~ ^[1-9][0-9]*$ ]] || ! [[ "$J" =~ ^[1-9][0-9]*$ ]]; then
+  echo "[gt4] NFSU2_LIFT_WORKERS and J must be positive integers." >&2
+  exit 2
+fi
+echo "[gt4] Parallelism: NFSU2_LIFT_WORKERS=$NFSU2_LIFT_WORKERS; J=$J"
 echo "[gt4] Generating and compiling WASM from the owner's compatible executable."
 web/gen.sh "$GAME/SPEED2.EXE"
-if [ -z "$J" ]; then export J=2; fi
 web/build.sh
 (cd web && npm run build)
 if [ "$MODE" = build ]; then echo "[gt4] Build complete."; exit 0; fi
