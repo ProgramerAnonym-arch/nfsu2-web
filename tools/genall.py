@@ -6,11 +6,12 @@ import pefile
 from capstone import *
 from capstone.x86 import *
 from lift import Lifter, Unsupported, _lregs
+from liftpool import lift_pool
 
 EXE = sys.argv[1]
 NSHARD = int(sys.argv[2]) if len(sys.argv)>2 else 128
 # Honor the environment's limit instead of spawning one process per host CPU.
-# The Codespaces helper sets NFSU2_LIFT_WORKERS=2 by default.
+# Codespaces defaults to one subprocess-free worker to avoid Python 3.14 forkserver failures.
 LIFT_WORKERS = max(1, int(os.environ.get('NFSU2_LIFT_WORKERS', mp.cpu_count())))
 # GENOUT: output directory (default gen/all); COMMENTS=1: every x86 instruction is
 # written as a comment (same code; for instruction-level profiles, see tools/lift_profile.py)
@@ -96,7 +97,7 @@ def drop_table_targets(funcs, fixed, relref):
     # a table counts only if EVERY function that jumps through it switches: one
     # that dispatches instead still needs the targets as functions
     tabs = set(); left = set()
-    with mp.Pool(LIFT_WORKERS, initializer=_init) as pool:
+    with lift_pool(LIFT_WORKERS, initializer=_init) as pool:
         for sw, lf in pool.imap_unordered(_jt_tables, funcs, chunksize=64): tabs.update(sw); left.update(lf)
     tabs = {d: ents for d, ents in tabs if d not in left}
     slots = set()
@@ -213,13 +214,13 @@ if __name__=='__main__':
     t1=time.time()
     inl = {}
     if INLINE_MAX or INLINE_LIST:
-        with mp.Pool(LIFT_WORKERS, initializer=_init) as pool:
+        with lift_pool(LIFT_WORKERS, initializer=_init) as pool:
             for a, code in pool.imap_unordered(_inlprobe, funcs if INLINE_MAX else [f for f in funcs if f in INLINE_LIST], chunksize=64):
                 if code: inl[a] = code
         print(f"  [inline: {len(inl)} functions: {len(INLINE_LIST & set(inl))} of the {len(INLINE_LIST)} in INLINE_LIST"
               + (f", leaf functions <= {INLINE_MAX} instructions" if INLINE_MAX else "") + f"]  ({time.time()-t1:.0f}s)")
     defined=set(); refs=set(); traps=0; trunc=0; kinds=collections.Counter(); bytes_=0; jt_left=set()
-    with mp.Pool(LIFT_WORKERS, initializer=_init, initargs=(inl,)) as pool:
+    with lift_pool(LIFT_WORKERS, initializer=_init, initargs=(inl,)) as pool:
         for n,(idx,d,r,tp,tr,kk,sz,lf) in enumerate(pool.imap_unordered(_shard, chunks)):
             defined |= set(d); refs |= set(r); traps+=tp; trunc+=tr; jt_left |= set(lf)
             kinds.update(kk); bytes_+=sz
