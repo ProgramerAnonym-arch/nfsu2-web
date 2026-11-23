@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import io
 from pathlib import Path
+from collections import Counter
 import sys
 import zipfile
 
@@ -134,7 +135,7 @@ class BoundedView(io.RawIOBase):
         return data
 
 
-def inspect_archives(path, index):
+def inspect_archives(path, index, details=False):
     """Read embedded ZIP directory metadata only; never decompress or extract."""
     archives = [(name, start, length) for name, (start, length, is_dir) in index.items()
                 if not is_dir and name.lower().endswith('.zip')]
@@ -148,13 +149,28 @@ def inspect_archives(path, index):
             try:
                 with zipfile.ZipFile(view, 'r') as archive:
                     members = archive.infolist()
-                    roots = sorted({m.filename.replace('\\', '/').split('/')[0] for m in members})
-                    samples = [m.filename for m in members if any(
-                        keyword in m.filename.upper() for keyword in
-                        ('SPEED2.EXE', 'CARS/', 'GLOBAL/', 'TRACKS/'))]
+                    def normalized(member):
+                        return member.filename.replace('\\', '/').lstrip('/')
+                    paths = [(normalized(m), m) for m in members]
+                    roots = sorted({p.split('/')[0] for p, _ in paths if p})
+                    prefixes = Counter(p.split('/')[0] for p, _ in paths if p and not p.endswith('/'))
+                    samples = [p for p, _ in paths if p.upper().startswith(
+                        ('CARS/', 'GLOBAL/', 'SOUND/', 'TRACKS/'))]
+                    executable = [p for p, _ in paths if p.split('/')[-1].upper() == 'SPEED2.EXE']
+                    total = sum(m.file_size for _, m in paths if not m.is_dir())
                     print(f'[mídia] ZIP reconhecido: {len(members)} entradas (somente índice).')
                     print('[mídia] Pastas/arquivos iniciais: ' + (', '.join(roots[:25]) or '(vazio)'))
+                    print('[mídia] Contagem por grupo: ' + (', '.join(
+                        f'{key}={value}' for key, value in sorted(prefixes.items())) or '(vazio)'))
+                    print(f'[mídia] Tamanho total declarado no ZIP: {total // 1048576} MiB (não extraído).')
+                    print('[mídia] SPEED2.EXE no ZIP: ' + (', '.join(executable) if executable else 'não encontrado'))
                     print('[mídia] Exemplos ligados ao jogo: ' + (', '.join(samples[:12]) or '(não identificados)'))
+                    if details:
+                        print('[mídia] Arquivos ZIP (nome e tamanho descompactado declarado):')
+                        for entry_name, member in sorted(paths, key=lambda pair: pair[0].casefold())[:200]:
+                            print(f'[mídia]   {entry_name!r} — {member.file_size} bytes')
+                        if len(paths) > 200:
+                            print(f'[mídia]   ... outros {len(paths) - 200} itens omitidos')
             except (zipfile.BadZipFile, EOFError, OSError, ValueError, NotImplementedError) as exc:
                 print(f'[mídia] Não foi possível ler o índice como ZIP padrão: {exc}')
                 print('[mídia] Pode ser um formato proprietário ou arquivo dividido entre discos.')
@@ -198,7 +214,7 @@ def game_directory(path):
     return 0
 
 
-def media_iso(path, archives=False):
+def media_iso(path, archives=False, details=False):
     print(f'[mídia] Imagem: {path.name} ({path.stat().st_size // 1048576} MiB)')
     index = iso_index(path)
     names = list(index)
@@ -216,7 +232,7 @@ def media_iso(path, archives=False):
         if missing:
             print('[mídia] Não há pastas de jogo na raiz: ' + ', '.join(missing))
     if archives:
-        inspect_archives(path, index)
+        inspect_archives(path, index, details=details)
     print('[mídia] A análise não executou, montou nem extraiu nenhum arquivo.')
     return 2  # ISO is not yet an installed game folder.
 
@@ -225,12 +241,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('path', nargs='?', default='.nfsu2-local/game', help='Pasta do jogo ou arquivo .iso')
     parser.add_argument('--archives', action='store_true', help='Examinar apenas o índice dos arquivos ZIP contidos na ISO, sem extrair')
+    parser.add_argument('--details', action='store_true', help='Listar nomes e tamanhos de até 200 entradas dos arquivos ZIP (usar com --archives)')
     args = parser.parse_args()
     p = Path(args.path).expanduser()
     try:
         if p.is_dir() or not p.exists():
             return game_directory(p)
-        return media_iso(p, archives=args.archives)
+        return media_iso(p, archives=args.archives or args.details, details=args.details)
     except (OSError, ValueError) as exc:
         print(f'[mídia] Não foi possível analisar: {exc}', file=sys.stderr)
         return 2
