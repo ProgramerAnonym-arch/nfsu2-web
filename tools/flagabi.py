@@ -24,6 +24,7 @@ import sys, os, json, collections, time, multiprocessing as mp
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from lift import Lifter, abi_cfg, abi_liveness, F_ALL
 from capstone.x86 import X86_OP_IMM
+from liftpool import lift_pool
 
 EXE = sys.argv[1]
 _L = None
@@ -73,8 +74,9 @@ if __name__ == '__main__':
     # Containers may report the host's CPU count (dozens of workers) despite
     # much tighter memory / process limits. Codespaces sets this to 2.
     workers = max(1, int(os.environ.get('NFSU2_LIFT_WORKERS', mp.cpu_count())))
-    print(f'FLAGABI: analysing with {workers} worker(s)', flush=True)
-    with mp.Pool(workers, initializer=_init) as pool:
+    print(f'FLAGABI: analysing with {workers} worker(s)' +
+          (' (sequential, no subprocesses)' if workers == 1 else ' (forked processes)'), flush=True)
+    with lift_pool(workers, initializer=_init) as pool:
         G = dict(pool.map(summarize, funcs, chunksize=64))
     G = {a: g for a, g in G.items() if g}
     print(f'summary: {len(G)} functions ({time.time()-t0:.0f}s)')
