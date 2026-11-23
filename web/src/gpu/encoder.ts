@@ -592,9 +592,10 @@ export class Encoder {
     pass.end();
   }
 
-  /** copyQuad's opaque composite with Exposure and White Level (wgsl.ts TONE): tone = mult, white, knee */
+  /** copyQuad's opaque composite with Exposure / White Level and optional Studio color grade (wgsl.ts TONE). */
   toneQuad(enc: GPUCommandEncoder, src: GPUTextureView, dst: GPUTextureView, format: GPUTextureFormat, smp: GPUSampler,
-           tone: ArrayLike<number>, vp?: [number, number, number, number], ts?: GPURenderPassTimestampWrites): void {
+           tone: ArrayLike<number>, vp?: [number, number, number, number], ts?: GPURenderPassTimestampWrites,
+           studio = false): void {
     const d = this.device;
     const r = this.toneRes ??= {
       mod: this.module('tone', TONE),
@@ -613,7 +614,7 @@ export class Encoder {
     if (!m) r.bgs.set(src, m = new Map());
     let g = m.get(smp);
     if (!g) m.set(smp, g = d.createBindGroup({ layout: r.bgl, entries: [{ binding: 0, resource: src }, { binding: 1, resource: smp }, { binding: 2, resource: { buffer: r.buf } }] }));
-    this.toneArgs.set([tone[0], tone[1], tone[2], 0]);
+    this.toneArgs.set([tone[0], tone[1], tone[2], studio ? 1 : 0]);
     this.queue.writeBuffer(r.buf, 0, this.toneArgs);
     const pass = enc.beginRenderPass({ colorAttachments: [{ view: dst, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }], timestampWrites: ts });
     pass.setPipeline(p);
