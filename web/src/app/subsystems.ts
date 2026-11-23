@@ -20,7 +20,8 @@ export type {
 
 export const attachRenderer: AttachRenderer = async (proc, canvas, o) => {
   const r = await gpuAttach(proc, canvas, { log: o.log, artifacts: o.artifacts, dumpScale: o.dumpScale, onLost: o.onLost, onMarks: o.onMarks,
-    pixelated: o.env.NFSU2_PIXELATED_TEXTURES === '1', aniso: o.env.NFSU2_ANISOTROPIC === '1' });
+    pixelated: o.env.NFSU2_PIXELATED_TEXTURES === '1', aniso: o.env.NFSU2_ANISOTROPIC === '1',
+    colorGrade: o.env.NFSU2_COLOR_GRADE === 'studio' ? 'studio' : 'original' });
   return {
     detach: () => r.detach(),
     imageRect: () => r.imageRect(),
