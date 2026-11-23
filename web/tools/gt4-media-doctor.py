@@ -5,8 +5,10 @@ No game executable is run or extracted. No third-party modules are needed.
 """
 import argparse
 import hashlib
+import io
 from pathlib import Path
 import sys
+import zipfile
 
 EXPECTED_HASH = 'f9dd86c054878ce6276beb07c1fd61874f7a1e4bf1f241b084c65b73e24168a7'
 EXPECTED_SIZE = 4800512
@@ -15,8 +17,8 @@ MAX_DIRECTORY = 8 * 1024 * 1024
 MAX_ENTRIES = 20000
 
 
-def iso_entries(path):
-    """List ISO-9660 Primary Volume Descriptor paths without mounting or extracting."""
+def iso_index(path):
+    """Index ISO-9660 Primary Volume Descriptor extents without mounting or extracting."""
     size = path.stat().st_size
     with path.open('rb') as f:
         f.seek(16 * SECTOR)
@@ -41,8 +43,8 @@ def iso_entries(path):
 
         stack = [(uint32(root[2:6]), uint32(root[10:14]), '', 0)]
         seen = set()
-        names = []
-        while stack and len(names) < MAX_ENTRIES:
+        entries = {}
+        while stack and len(entries) < MAX_ENTRIES:
             location, length, prefix, depth = stack.pop()
             if (location, length) in seen or depth > 6 or length > MAX_DIRECTORY:
                 continue
@@ -52,7 +54,7 @@ def iso_entries(path):
             f.seek(location * SECTOR)
             directory = f.read(length)
             offset = 0
-            while offset < len(directory) and len(names) < MAX_ENTRIES:
+            while offset < len(directory) and len(entries) < MAX_ENTRIES:
                 record_size = directory[offset]
                 if record_size == 0:
                     offset = (offset // SECTOR + 1) * SECTOR
@@ -73,12 +75,91 @@ def iso_entries(path):
                     continue
                 full = prefix + name
                 is_dir = bool(rec[25] & 2)
-                names.append(full + ('/' if is_dir else ''))
+                extent = uint32(rec[2:6]) * SECTOR
+                data_size = uint32(rec[10:14])
+                if extent + data_size > size:
+                    continue
+                entries[full + ('/' if is_dir else '')] = (extent, data_size, is_dir)
                 if is_dir:
                     sub_location = uint32(rec[2:6])
                     sub_length = uint32(rec[10:14])
                     stack.append((sub_location, sub_length, full + '/', depth + 1))
-    return names
+    return entries
+
+
+def iso_entries(path):
+    """List ISO-9660 paths without mounting or extracting."""
+    return list(iso_index(path))
+
+
+class BoundedView(io.RawIOBase):
+    """Seekable read-only view of one file's extent inside the ISO."""
+    def __init__(self, backing, start, length):
+        self.backing = backing
+        self.start = start
+        self.length = length
+        self.position = 0
+
+    def readable(self):
+        return True
+
+    def seekable(self):
+        return True
+
+    def tell(self):
+        return self.position
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        if whence == io.SEEK_SET:
+            pos = offset
+        elif whence == io.SEEK_CUR:
+            pos = self.position + offset
+        elif whence == io.SEEK_END:
+            pos = self.length + offset
+        else:
+            raise ValueError('Invalid whence')
+        if pos < 0:
+            raise ValueError('Negative seek position')
+        self.position = pos
+        return pos
+
+    def read(self, size=-1):
+        remaining = max(0, self.length - self.position)
+        if size is None or size < 0:
+            size = remaining
+        size = min(size, remaining)
+        self.backing.seek(self.start + self.position)
+        data = self.backing.read(size)
+        self.position += len(data)
+        return data
+
+
+def inspect_archives(path, index):
+    """Read embedded ZIP directory metadata only; never decompress or extract."""
+    archives = [(name, start, length) for name, (start, length, is_dir) in index.items()
+                if not is_dir and name.lower().endswith('.zip')]
+    if not archives:
+        print('[mídia] Nenhum arquivo .ZIP encontrado na ISO.')
+        return
+    for name, start, length in archives[:8]:
+        print(f'[mídia] Arquivo interno: {name} ({length // 1048576} MiB)')
+        with path.open('rb') as backing:
+            view = BoundedView(backing, start, length)
+            try:
+                with zipfile.ZipFile(view, 'r') as archive:
+                    members = archive.infolist()
+                    roots = sorted({m.filename.replace('\\', '/').split('/')[0] for m in members})
+                    samples = [m.filename for m in members if any(
+                        keyword in m.filename.upper() for keyword in
+                        ('SPEED2.EXE', 'CARS/', 'GLOBAL/', 'TRACKS/'))]
+                    print(f'[mídia] ZIP reconhecido: {len(members)} entradas (somente índice).')
+                    print('[mídia] Pastas/arquivos iniciais: ' + (', '.join(roots[:25]) or '(vazio)'))
+                    print('[mídia] Exemplos ligados ao jogo: ' + (', '.join(samples[:12]) or '(não identificados)'))
+            except (zipfile.BadZipFile, EOFError, OSError, ValueError, NotImplementedError) as exc:
+                print(f'[mídia] Não foi possível ler o índice como ZIP padrão: {exc}')
+                print('[mídia] Pode ser um formato proprietário ou arquivo dividido entre discos.')
+    if len(archives) > 8:
+        print(f'[mídia] Outros {len(archives) - 8} arquivos ZIP não examinados.')
 
 
 def game_directory(path):
@@ -117,9 +198,10 @@ def game_directory(path):
     return 0
 
 
-def media_iso(path):
+def media_iso(path, archives=False):
     print(f'[mídia] Imagem: {path.name} ({path.stat().st_size // 1048576} MiB)')
-    names = iso_entries(path)
+    index = iso_index(path)
+    names = list(index)
     top = sorted({p.split('/')[0] for p in names if p})
     print('[mídia] Entradas da raiz: ' + (', '.join(top[:35]) or '(vazia)'))
     upper = {n.upper() for n in names}
@@ -133,6 +215,8 @@ def media_iso(path):
         print('[mídia] Parece mídia de instalação ou imagem incompleta para execução direta.')
         if missing:
             print('[mídia] Não há pastas de jogo na raiz: ' + ', '.join(missing))
+    if archives:
+        inspect_archives(path, index)
     print('[mídia] A análise não executou, montou nem extraiu nenhum arquivo.')
     return 2  # ISO is not yet an installed game folder.
 
@@ -140,12 +224,13 @@ def media_iso(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('path', nargs='?', default='.nfsu2-local/game', help='Pasta do jogo ou arquivo .iso')
+    parser.add_argument('--archives', action='store_true', help='Examinar apenas o índice dos arquivos ZIP contidos na ISO, sem extrair')
     args = parser.parse_args()
     p = Path(args.path).expanduser()
     try:
         if p.is_dir() or not p.exists():
             return game_directory(p)
-        return media_iso(p)
+        return media_iso(p, archives=args.archives)
     except (OSError, ValueError) as exc:
         print(f'[mídia] Não foi possível analisar: {exc}', file=sys.stderr)
         return 2
