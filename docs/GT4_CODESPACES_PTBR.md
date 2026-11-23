@@ -24,6 +24,24 @@ O comando testa as ferramentas já disponíveis e, se faltarem `rustc` e `cargo`
 
 O Windows local **não precisa de acesso de administrador** para este fluxo em nuvem.
 
+## Diagnóstico sem executar a ISO (opcional)
+
+Quando uma imagem de disco obtida de uma fonte autorizada estiver dentro do Codespaces, é possível inspecionar o índice ISO-9660 **sem montar, extrair ou executar** seu conteúdo:
+
+```bash
+python3 web/tools/gt4-media-doctor.py ".nfsu2-local/disco1.iso"
+```
+
+O comando informa os nomes na raiz, identifica indícios de um disco instalador (por exemplo `SETUP.EXE`) e avisa quando não há `CARS/`, `GLOBAL/` e `TRACKS/` na raiz. Também aceita pastas do jogo já extraídas:
+
+```bash
+python3 web/tools/gt4-media-doctor.py ".nfsu2-local/game"
+```
+
+Nesse segundo caso, verifica a presença de pastas essenciais, o tamanho e o SHA-256 do `SPEED2.EXE`. **Código de saída 2 significa que a mídia ainda não está pronta; não indica um erro de execução do jogo.** O verificador lê apenas metadados da ISO; não verifica malware, licenças, integridade da instalação completa, nem oferece suporte a toda imagem UDF/Joliet. Não substitui o comando `check` nem executa instaladores.
+
+**Não tente contornar bloqueios do Controle Inteligente de Aplicativos do Windows.** O diagnóstico pode ser feito no Linux do Codespaces quando o arquivo for transferido privadamente. Mantenha a pasta `.nfsu2-local` fora do Git.
+
 ## Passo 3 — Colocar seus arquivos legítimos no Codespace
 
 Use uma cópia original do Need for Speed Underground 2 para PC, versão norte-americana 1.2, conforme o README do projeto. O arquivo `SPEED2.EXE` obrigatório tem **4.800.512 bytes** e SHA-256:
