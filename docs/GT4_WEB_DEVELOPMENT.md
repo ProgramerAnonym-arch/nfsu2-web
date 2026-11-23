@@ -66,3 +66,9 @@ The direct-to-canvas fast path remains unchanged in Original mode. Studio disabl
 This is not improved geometry, a PBR car paint system, new lighting, new cars, ray tracing or a finished GT4 visual remake. No proprietary assets were added.
 
 Verification: branch CI typechecks the browser, bundles its JS/CSS and tests settings plus color-pass wiring. A successful CI is **not** proof of correct WebGPU imagery, unchanged FPS or successful Bayview gameplay. Those tests require the game's original, properly licensed files and a compatible browser.
+
+## Automated browser graphics validation
+
+`web/test/studio-gpu.test.mjs` runs the actual `TONE` WGSL shader on a synthetic (non-game) test texture through Chromium/WebGPU. It checks that Original preserves colors, Studio makes measurable but bounded changes, and alpha remains opaque. On a successful GitHub Actions run, the pictures are attached as `studio-gpu-synthetic-comparison`, containing `original.png` and `studio.png`.
+
+This proves the shader compiles and operates on **synthetic data in the test browser only**. It is not equivalent to validating the game engine or real Bayview assets, nor is it a hardware performance benchmark. The browser test lives in the slow group: ordinary `npm run test:fast` remains independent of an installed browser.
