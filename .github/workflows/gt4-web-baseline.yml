@@ -1,0 +1,59 @@
+# Lightweight checks for our browser-first development branch.
+# No NFSU2 game files or generated game binaries are needed or distributed here.
+# Full game/WASM verification requires the user's compatible, licensed game files.
+name: GT4 Web baseline
+
+on:
+  push:
+    branches: [nfsu2-gt4-web]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gt4-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-ui:
+    name: Typecheck, bundle and renderer unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23.9.0
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Confirm game assets and generated builds are not tracked
+        shell: bash
+        run: |
+          if git ls-files | grep -E '(^gen/|^out/|^deps/|(^|/)SPEED2\\.EXE$|(^|/)server\\.dll$)'; then
+            echo "Proprietary or generated game files must not be committed."
+            exit 1
+          fi
+      - name: Install browser build dependencies
+        run: npm ci
+        working-directory: web
+      - name: Typecheck TypeScript
+        run: npm run check
+        working-directory: web
+      - name: Bundle the browser application
+        run: npm run build
+        working-directory: web
+      - name: Run isolated graphics and settings tests
+        run: node --test test/viewport.test.mjs test/photolook.test.mjs test/rendercheck.test.mjs test/prefs.test.mjs
+        working-directory: web
+      - name: Summarize verified scope
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### GT4 Web — baseline'
+            echo ''
+            echo '- Verified target: browser TypeScript, UI bundling, isolated renderer and settings logic.'
+            echo '- Not verified: compiling the game-derived WASM, launching Bayview, real GPU output, or driving.'
+            echo '- Those require a compatible, legally obtained Underground 2 installation and browser execution.'
+          } >> "$GITHUB_STEP_SUMMARY"
