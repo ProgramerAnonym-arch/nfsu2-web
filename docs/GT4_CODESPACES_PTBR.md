@@ -29,10 +29,10 @@ O Windows local **não precisa de acesso de administrador** para este fluxo em n
 Quando uma imagem de disco obtida de uma fonte autorizada estiver dentro do Codespaces, é possível inspecionar o índice ISO-9660 **sem montar, extrair ou executar** seu conteúdo:
 
 ```bash
-python3 web/tools/gt4-media-doctor.py ".nfsu2-local/disco1.iso"
+python3 web/tools/gt4-media-doctor.py ".nfsu2-local/NFSUG2_DISK1.iso" --archives
 ```
 
-O comando informa os nomes na raiz, identifica indícios de um disco instalador (por exemplo `SETUP.EXE`) e avisa quando não há `CARS/`, `GLOBAL/` e `TRACKS/` na raiz. Também aceita pastas do jogo já extraídas:
+O comando informa os nomes na raiz, identifica indícios de um disco instalador (por exemplo `SETUP.EXE`) e avisa quando não há `CARS/`, `GLOBAL/` e `TRACKS/` na raiz. A opção `--archives` lê somente o índice central de arquivos `.ZIP` contidos na imagem, inclusive `COMPRESSED.ZIP`, sem descompactar nem copiar os arquivos. Se ele não reconhecer o ZIP, pode ser um formato proprietário ou mídia dividida entre discos. Isso não permite concluir que os dados do jogo estão completos. Também aceita pastas do jogo já extraídas:
 
 ```bash
 python3 web/tools/gt4-media-doctor.py ".nfsu2-local/game"
