@@ -56,3 +56,13 @@ The code can be edited and committed through GitHub without direct terminal acce
 ## Legal and distribution boundary
 
 This repository's MIT license covers the published open-source code. It does not license Need for Speed Underground 2 game assets, compiled derivatives of the game, soundtracks, branded car models or other third-party intellectual property. Do not publish such assets or generated binaries without appropriate rights. For a publicly distributable standalone racing game, replace proprietary assets and dependencies with original or appropriately licensed alternatives.
+
+## Implemented: opt-in Studio color treatment (first graphics change)
+
+In the browser's **Display > Color treatment**, choose **Original** (default) or **Studio**. Studio is a restrained final WebGPU color pass that changes contrast, saturation, shadow hue and highlight balance during regular driving. Its shader runs after the game's Exposure and White Level adjustment; the game's original rendered picture is the input.
+
+The direct-to-canvas fast path remains unchanged in Original mode. Studio disables that shortcut to use a compositor pass and therefore may reduce performance, especially on phones. Photo Mode uses its own existing filters and does **not** yet apply this Studio treatment. The option takes effect the next time Play is pressed.
+
+This is not improved geometry, a PBR car paint system, new lighting, new cars, ray tracing or a finished GT4 visual remake. No proprietary assets were added.
+
+Verification: branch CI typechecks the browser, bundles its JS/CSS and tests settings plus color-pass wiring. A successful CI is **not** proof of correct WebGPU imagery, unchanged FPS or successful Bayview gameplay. Those tests require the game's original, properly licensed files and a compatible browser.
