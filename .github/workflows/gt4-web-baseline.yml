@@ -49,6 +49,8 @@ jobs:
           fi
           cat /tmp/gt4-doctor.txt
           grep -q 'Missing game executable:' /tmp/gt4-doctor.txt
+      - name: Exercise Codespaces open-source preparation without game data
+        run: bash web/tools/gt4-codespace.sh prepare
       - name: Typecheck TypeScript
         run: npm run check
         working-directory: web
