@@ -15,6 +15,7 @@ const SLOW = new Set([
   'deploy',        // ~80 s: the keep-alive, the certificate check and the proxy idle cut, on the server's own clocks
   'audit',         // ~36 s: F3 holds hundreds of requests
   'page-narrow',   // ~26 s: Chrome, the page in every language
+  'studio-gpu',    // real Chromium WebGPU; run explicitly in GT4 Web CI after installing the browser
   'data-blocks',   // ~27 s: brotli at its best
   'lan-wasm',      // ~17 s: lan_unit.c built for wasm
   'roam-asi',      // ~11 s: the Windows plugin built with mingw
