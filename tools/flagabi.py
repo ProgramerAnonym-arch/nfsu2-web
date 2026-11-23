@@ -70,7 +70,11 @@ if __name__ == '__main__':
     import genall                      # discover_all: genall.EXE = sys.argv[1]
     funcs = genall.discover_all()[0]   # every entry, jump-table targets included: a superset of what is lifted
     print(f'{len(funcs)} functions ({time.time()-t0:.0f}s)')
-    with mp.Pool(mp.cpu_count(), initializer=_init) as pool:
+    # Containers may report the host's CPU count (dozens of workers) despite
+    # much tighter memory / process limits. Codespaces sets this to 2.
+    workers = max(1, int(os.environ.get('NFSU2_LIFT_WORKERS', mp.cpu_count())))
+    print(f'FLAGABI: analysing with {workers} worker(s)', flush=True)
+    with mp.Pool(workers, initializer=_init) as pool:
         G = dict(pool.map(summarize, funcs, chunksize=64))
     G = {a: g for a, g in G.items() if g}
     print(f'summary: {len(G)} functions ({time.time()-t0:.0f}s)')
