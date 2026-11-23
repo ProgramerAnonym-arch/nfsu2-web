@@ -105,6 +105,31 @@ class TestIso(unittest.TestCase):
                 self.assertEqual(mod.media_iso(f, archives=True), 2)
             self.assertIn('Não foi possível ler o índice como ZIP padrão', out.getvalue())
 
+    def test_installer_common_filelist_identifies_executable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'disc.iso'
+            manifest = b'Install files\r\nSPEED2.EXE, disk 2\r\nCARS/GEOMETRY.BIN\r\n'
+            minimal_iso(target, fname=b'COMMON_FILELIST.TXT;1', data=manifest)
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(mod.media_iso(target, installer_info=True), 2)
+            result = out.getvalue()
+            self.assertIn('SPEED2.EXE, disk 2', result)
+            self.assertIn('COMMON_FILELIST.TXT', result)
+            self.assertIn('BIN.DAT: não está na raiz', result)
+            self.assertIn('Nenhum instalador foi executado', result)
+
+    def test_installer_bin_dat_reads_only_first_64_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'disc.iso'
+            minimal_iso(target, fname=b'BIN.DAT;1', data=b'PK' + b'a' * 250)
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(mod.media_iso(target, installer_info=True), 2)
+            result = out.getvalue()
+            self.assertIn('BIN.DAT: 252 bytes', result)
+            self.assertIn('50 4b', result)
+            self.assertIn('começa com assinatura PK', result)
+            self.assertIn('COMMON_FILELIST.TXT: não está', result)
+
     def test_wrong_file_exe_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             f = Path(tmp) / 'SPEED2.EXE'
