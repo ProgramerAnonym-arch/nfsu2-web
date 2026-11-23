@@ -78,6 +78,25 @@ class TestIso(unittest.TestCase):
             self.assertIn('DATA/CARS/example.bin', out.getvalue())
             self.assertIn('não executou, montou nem extraiu', out.getvalue())
 
+    def test_windows_separators_and_detailed_listing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / 'disc.iso'
+            memory = io.BytesIO()
+            with zipfile.ZipFile(memory, 'w', compression=zipfile.ZIP_DEFLATED) as z:
+                z.writestr(r'CARS\FORD\CAR.BIN', b'car-data')
+                z.writestr(r'GLOBAL\TEXTURES.BIN', b'global-data')
+                z.writestr('TRACKS/TRACK1/ROAD.BIN', b'road-data')
+            minimal_iso(target, fname=b'COMPRESSED.ZIP;1', data=memory.getvalue())
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(mod.media_iso(target, archives=True, details=True), 2)
+            printed = out.getvalue()
+            self.assertIn('CARS/FORD/CAR.BIN', printed)
+            self.assertIn('GLOBAL/TEXTURES.BIN', printed)
+            self.assertIn('TRACKS/TRACK1/ROAD.BIN', printed)
+            self.assertIn('Contagem por grupo: CARS=1, GLOBAL=1, TRACKS=1', printed)
+            self.assertIn('SPEED2.EXE no ZIP: não encontrado', printed)
+            self.assertIn('Arquivos ZIP (nome e tamanho', printed)
+
     def test_invalid_embedded_zip_reports_without_crashing(self):
         with tempfile.TemporaryDirectory() as tmp:
             f = Path(tmp) / 'fake.iso'
