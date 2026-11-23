@@ -226,6 +226,8 @@ export const KEYS: readonly KeyDef[] = [
   // the game's own textures without smoothing (only the page's renderer reads it: subsystems.ts, gpu/encoder.ts
   // pointTex).  Not in bundle.m's table
   { key: 'pixelated_textures', env: 'NFSU2_PIXELATED_TEXTURES', kind: 'bool', scope: 'web' },
+  // Optional final color pass, only in the browser. Does not alter the game data.
+  { key: 'color_grade', env: 'NFSU2_COLOR_GRADE', kind: 'enum', vals: 'original|studio', scope: 'web' },
   // the game's Full Scene Anti-Aliasing offered, at 4 samples (runtime/com.c MULTISAMPLING; phones off: device.ts).  Not
   // in bundle.m's table: the Mac's MSAA is msaa's
   { key: 'fsaa', env: 'NFSU2_FSAA', kind: 'bool', scope: 'web', device: true },
@@ -489,6 +491,10 @@ export const TEMPLATE = `# NFSU2 settings, read at every launch.
 # Textures without smoothing (point sampling), blocky like early PC games;
 # on overrides the game's Texture Filtering.  [NFSU2_PIXELATED_TEXTURES]
 #pixelated_textures = off
+# Browser-only final color treatment: original = unchanged game output;
+# studio = subtle contrast and color balance with an extra full-screen WebGPU
+# pass. No new textures, lights, or models. [NFSU2_COLOR_GRADE]
+#color_grade = original
 # The game's own Full Scene Anti-Aliasing (Options > Display > Customize
 # Display Settings), drawn at 4 samples: smoother edges for more of the
 # graphics' work; a new player on a computer starts with it on.  off = not
