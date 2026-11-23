@@ -94,7 +94,7 @@ export const MS_RESOLVE = /* wgsl */`
 
 // The composite with Exposure and White Level (runtime/tonemenu.c, GwTone): each channel times mult (at most 1),
 // then a value above knee * white bends down so that 1 lands on white (a rational shoulder: slope 1 where it starts,
-// so no edge shows).  tone: mult, white, knee.
+// so no edge shows).  tone: mult, white, knee, Studio flag (w). With tone [1,1,0], the exposure path is identity.
 export const TONE = COPY + /* wgsl */`
 @group(0) @binding(2) var<uniform> tone: vec4f;
 @fragment fn fs_tone(i: BOut) -> @location(0) vec4f {
@@ -103,7 +103,21 @@ export const TONE = COPY + /* wgsl */`
   let m = (1.0 - s) / (tone.y - s);
   let t = max(y - s, vec3f(0.0)) / (1.0 - s);
   let b = s + (tone.y - s) * (m * t) / (1.0 + (m - 1.0) * t);
-  return vec4f(select(y, b, y > vec3f(s)), 1.0);
+  var c = select(y, b, y > vec3f(s));
+  // Browser-only Studio treatment: restrained contrast and saturation, cool shadows,
+  // slightly warm highlights. Disabled by default; the game's materials are unchanged.
+  if (tone.w > 0.5) {
+    let luma = dot(c, vec3f(0.2126, 0.7152, 0.0722));
+    var graded = mix(vec3f(luma), c, 1.045);
+    graded = (graded - vec3f(0.5)) * 1.04 + vec3f(0.5);
+    let shadow = 1.0 - smoothstep(0.15, 0.65, luma);
+    let highlight = smoothstep(0.40, 0.92, luma);
+    graded *= vec3f(1.0 + 0.011 * highlight - 0.008 * shadow,
+                    1.0 + 0.002 * highlight,
+                    1.0 + 0.016 * shadow - 0.012 * highlight);
+    c = clamp(graded, vec3f(0.0), vec3f(1.0));
+  }
+  return vec4f(c, 1.0);
 }`;
 
 // Photo mode's picture (photo-picture.ts): fs_add takes the back buffer pixel for pixel into the average (the blend
