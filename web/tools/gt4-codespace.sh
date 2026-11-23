@@ -124,8 +124,9 @@ if [ "$MODE" = prepare ]; then
   exit 0
 fi
 # The container can expose the host CPU count while limiting available RAM.
-# Keep both Python lifter workers and WASM compiler jobs bounded by default.
-export NFSU2_LIFT_WORKERS="${NFSU2_LIFT_WORKERS:-2}"
+# Use sequential Python lifting by default: no forkserver/subprocess handshake.
+# Keep WASM compiler jobs independently bounded by J.
+export NFSU2_LIFT_WORKERS="${NFSU2_LIFT_WORKERS:-1}"
 export J="${J:-2}"
 if ! [[ "$NFSU2_LIFT_WORKERS" =~ ^[1-9][0-9]*$ ]] || ! [[ "$J" =~ ^[1-9][0-9]*$ ]]; then
   echo "[gt4] NFSU2_LIFT_WORKERS and J must be positive integers." >&2
