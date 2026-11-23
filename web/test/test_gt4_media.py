@@ -1,6 +1,7 @@
 """Synthetic tests for the read-only NFSU2 ISO/game-folder diagnostic."""
 import importlib.util
 import io
+import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
 import tempfile
@@ -29,7 +30,7 @@ def iso_record(name, loc, length, is_dir=False):
     return bytes(rec)
 
 
-def minimal_iso(where, fname=b'SETUP.EXE;1'):
+def minimal_iso(where, fname=b'SETUP.EXE;1', data=b'12345678'):
     image = bytearray(32 * 2048)
     pvd = bytearray(2048)
     pvd[0] = 1
@@ -42,8 +43,9 @@ def minimal_iso(where, fname=b'SETUP.EXE;1'):
     term[1:6] = b'CD001'
     term[6] = 1
     image[17 * 2048:18 * 2048] = term
-    record = iso_record(fname, 19, 8)
+    record = iso_record(fname, 19, len(data))
     image[18 * 2048:18 * 2048 + len(record)] = record
+    image[19 * 2048:19 * 2048 + len(data)] = data
     Path(where).write_bytes(image)
 
 
@@ -58,6 +60,31 @@ class TestIso(unittest.TestCase):
             self.assertEqual(result, 2)
             self.assertIn('SETUP.EXE: encontrado', out.getvalue())
             self.assertIn('instalação', out.getvalue())
+
+    def test_embedded_zip_index_without_extraction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / 'media.iso'
+            memory = io.BytesIO()
+            with zipfile.ZipFile(memory, 'w', compression=zipfile.ZIP_DEFLATED) as z:
+                z.writestr('DATA/CARS/example.bin', b'example car texture')
+                z.writestr('DATA/GLOBAL/sample.dat', b'game data')
+            minimal_iso(f, fname=b'COMPRESSED.ZIP;1', data=memory.getvalue())
+            index = mod.iso_index(f)
+            self.assertIn('COMPRESSED.ZIP', index)
+            with redirect_stdout(io.StringIO()) as out:
+                result = mod.media_iso(f, archives=True)
+            self.assertEqual(result, 2)
+            self.assertIn('ZIP reconhecido: 2 entradas', out.getvalue())
+            self.assertIn('DATA/CARS/example.bin', out.getvalue())
+            self.assertIn('não executou, montou nem extraiu', out.getvalue())
+
+    def test_invalid_embedded_zip_reports_without_crashing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / 'fake.iso'
+            minimal_iso(f, fname=b'COMPRESSED.ZIP;1', data=b'not a zip')
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(mod.media_iso(f, archives=True), 2)
+            self.assertIn('Não foi possível ler o índice como ZIP padrão', out.getvalue())
 
     def test_wrong_file_exe_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
