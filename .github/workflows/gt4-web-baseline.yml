@@ -49,6 +49,8 @@ jobs:
           fi
           cat /tmp/gt4-doctor.txt
           grep -q 'Missing game executable:' /tmp/gt4-doctor.txt
+      - name: Test read-only ISO and game-data diagnostics with synthetic files
+        run: python3 -m unittest discover -s web/test -p 'test_gt4_media.py' -v
       - name: Exercise Codespaces open-source preparation without game data
         run: bash web/tools/gt4-codespace.sh prepare
       - name: Typecheck TypeScript
