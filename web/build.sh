@@ -96,23 +96,39 @@ HDRSUM="$( (cat runtime/cpu.h runtime/splitscreen_mem.h runtime/web/compat/wasm_
 RT="mem dispatch genexec heap watchdog win32 win32_ext com debug features res fileio overrides d3dx_hle vsemu oracle autotest lifecycle widescreen framerate dinput_pad dikeys keyboard dinput_kbd career intro drifttest roam roam_core roam_game mprace mpcredit horn hornmenu optslider tonemenu powerunits radio drift carsfx racehorn racenet racecars winsock online netrace module modheap enhance headlights language sms sponsors lobbyclick olfilter tunegraph dyno menusize regional garage sndlead carshadow carpaint hiddenraces visualrep hqvinyls whine carspot walls travel movie photo look savegame uniques catchup showoff quickrace cameras vinylcat vinylpacks modpacks specialties lightkey plates plate_image trafficcars shownames hudbank engage gpsdistance stance"
 RT="$RT splitscreen coop damage"
 WEB="$(cd runtime/web && ls *.c | sed 's/\.c$//')"
+# Keep runtime compilation inside the same job limit as the lifted shards.
+# Previously all runtime C files were spawned simultaneously, which can exhaust
+# a small Codespace even with J=2 set for the xargs-based shard compilation.
 pids=""
+running=0
+runtime_launch() {
+  "$@" &
+  pids="$pids $!"
+  running=$((running + 1))
+  if [ "$running" -ge "$J" ]; then
+    for p in $pids; do
+      wait "$p" || { echo "runtime compile failed" >&2; exit 1; }
+    done
+    pids=""
+    running=0
+  fi
+}
 for f in $RT; do
   src="runtime/$f.c"; [ -f "$src" ] || src="runtime/web/$f.c"
   [ -f "$src" ] || continue
   fx=""; case "$f" in roam_core|roam_game) fx="-ffp-contract=off" ;; esac
-  $CC $CFLAGS $fx -DNFS_ENHANCED=0 -c -o "$OUT/rt/$f.o" "$src" & pids="$pids $!"
+  runtime_launch "$CC" $CFLAGS $fx -DNFS_ENHANCED=0 -c -o "$OUT/rt/$f.o" "$src"
 done
 for f in $WEB; do
   case "$f" in thread_exit) fl="$TARGET $OPT $FEAT" ;; *) fl="$CFLAGS -DNFS_ENHANCED=0" ;; esac
-  $CC $fl -c -o "$OUT/rt/web_$f.o" "runtime/web/$f.c" & pids="$pids $!"
+  runtime_launch "$CC" $fl -c -o "$OUT/rt/web_$f.o" "runtime/web/$f.c"
 done
 # C++ parts of the runtime (damagecore.cpp: the crash damage, the .asi's own code): libc++ without exceptions
 CXX="$WASI/bin/clang++"
 for f in damagecore; do
-  $CXX $TARGET $OPT $FEAT -std=c++17 -fno-exceptions -fno-rtti -fno-strict-aliasing -fno-delete-null-pointer-checks     -Iruntime -c -o "$OUT/rt/$f.o" "runtime/$f.cpp" & pids="$pids $!"
+  runtime_launch "$CXX" $TARGET $OPT $FEAT -std=c++17 -fno-exceptions -fno-rtti -fno-strict-aliasing -fno-delete-null-pointer-checks -Iruntime -c -o "$OUT/rt/$f.o" "runtime/$f.cpp"
 done
-for p in $pids; do wait "$p" || { echo "runtime compile failed"; exit 1; }; done
+for p in $pids; do wait "$p" || { echo "runtime compile failed" >&2; exit 1; }; done
 
 # ---- link ----
 OBJS="$(ls "$OUT"/obj/*.o) $(ls "$OUT"/obj/srv/*.o) $(ls "$OUT"/rt/*.o)"
