@@ -13,6 +13,7 @@ from pathlib import Path, PurePosixPath
 import struct
 import tempfile
 import zipfile
+from gt4_addon_parts import parse_parts
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -217,7 +218,10 @@ def batch(source, game, output):
                                     assets[f"config/{car}.ini"] = a.read(key)
                                 for key in a.matches(f"CarTypeMapping/{car}.ini",prefix):
                                     assets[f"sound/{car}.ini"] = a.read(key)
-                            entry["exported_part_count"] = struct.unpack_from("<I",raw_p,len(car)+1)[0]
+                            parts = parse_parts(raw_p, car)
+                            entry["exported_part_count"] = parts["count"]
+                            entry["parts_status"] = "parsed_all_records"
+                            assets["decoded/DBModelParts.json"] = (json.dumps(parts, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
                             if base is None:
                                 entry["status"] = "staged_no_base_table"
                             elif car in stock:
