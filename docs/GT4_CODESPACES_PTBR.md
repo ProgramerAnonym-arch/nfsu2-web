@@ -141,8 +141,21 @@ O jogo só será chamado de jogável depois que estes pontos tiverem sido verifi
 5. Modo visual Original e Studio foram comparados no mesmo local e sem erro WebGPU.
 6. FPS, estabilidade e eventuais travamentos foram registrados.
 
-**Situação atual:** a compilação da interface e o shader Studio já passaram em testes automatizados; **ainda não temos comprovação de uma sessão jogável em Bayview**. A última condição depende do proprietário fornecer o conjunto legítimo do jogo ao Codespace.
+**Situação atual (24/11/2026):** o proprietário confirmou compilação WASM, inicialização, entrada no jogo e direção em Bayview, com aproximadamente **20–30 FPS** no computador dele. O travamento inicial no menu foi corrigido incluindo `SDATA` no manifesto do servidor. Ainda não verificamos corrida completa, salvamentos, estabilidade prolongada ou FPS comparativos Original/Studio.
 
-## Desenvolvimento seguinte
+## Desenvolvimento seguinte — Studio com caminho de composição otimizado
 
-Após a primeira sessão jogável, compararemos dois registros do mesmo trecho com configurações Original e Studio; depois começaremos um aprimoramento de iluminação ou materiais por vez. Não devemos adicionar centenas de carros ou alterar a física antes de medir a estabilidade da base.
+O modo Studio é opcional (`color_grade = studio`, padrão `original`). É um ajuste de cor na **composição WebGPU**, sem substituir carros, pistas, sombras, física ou texturas originais.
+
+O caminho de composição Studio foi otimizado para a exposição padrão `[1, 1, 0]`: o fragment shader `fs_studio_neutral` aplica a mesma função `studio_grade` do shader de exposição completo, mas evita cálculos de curva tonal que, nesse caso, são identidade. O renderer também evita um `writeBuffer` uniforme desnecessário por quadro. Quando o jogador altera a exposição/White Level, continua usando `fs_tone` com a mesma graduação; Original preserva seu caminho independente. **A otimização não elimina a passagem de tela inteira do Studio**, logo o ganho em FPS pode ser pequeno ou nulo e precisa ser medido.
+
+### Como medir no computador real (20–30 FPS de referência)
+
+1. Em Bayview, deixe o carro **parado na mesma posição** e aguarde os recursos carregarem; compare os modos `original` e `studio` no mesmo trecho, horário, clima, resolução e opções de antialiasing.
+2. Use `F8` para ver o FPS, e anote o valor típico e as quedas de FPS ao dirigir pelo mesmo caminho durante alguns minutos.
+3. Faça uma captura `F12` de cada modo. Confira especialmente a legibilidade de faróis, pretos, asfalto e detalhes da carroceria.
+4. Se Studio ficar substancialmente mais lento, mantenha Original ou reduza **voluntariamente** a escala de renderização em `render = scale:0.85` nas configurações (para ambos os modos no comparativo), antes de sacrificar a física ou reduzir conteúdo do mapa.
+
+Os testes sem arquivos do jogo verificam o encaminhamento dos shaders e os ajustes de composição. A regressão visual WebGPU só é executada no GitHub Actions quando o executor oferece um adaptador compatível; ausência do adaptador produz um `skip`, **não validação gráfica**. A qualidade final ainda depende de comparar capturas e FPS da mesma cena no navegador.
+
+Não devemos adicionar dezenas de efeitos, modificar a física original nem prometer 60 FPS sem dados de uma partida reproduzível.
