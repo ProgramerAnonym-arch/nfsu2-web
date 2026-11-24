@@ -19,6 +19,8 @@ spec=importlib.util.spec_from_file_location("database",HERE/"gt4-addon-database-
 db=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(db)
 native=db.native
+from packcheck import jdlz_native
+from vinylpacks import jdlz_pack
 ALIGN=2048
 TYPE_NAMES={native.TYPE_TAG:"CarTypeInfo.chunk",native.SKIN_TAG:"SkinInfo.chunk",
             native.PART_TAG:"DBModelParts.chunk"}
@@ -66,16 +68,15 @@ def assemble(base, replacements):
     return bytes(out)
 
 
-def literal_jdlz(data):
-    # JDLZ literal-only encoding. The second flag byte is consumed once
-    # because there are no back references. Avoid expensive recompression.
-    payload=bytearray()
-    for at in range(0,len(data),8):
-        payload.append(0)
-        if at==0:
-            payload.append(0)
-        payload.extend(data[at:at+8])
-    return struct.pack("<4sIII",b"JDLZ",0x1002,len(data),16+len(payload))+payload
+def pack_globalb(data):
+    """Use the established game-compatible encoder and strict runtime verifier."""
+    packed=jdlz_pack(data)
+    decoded,why=jdlz_native(packed)
+    if why or decoded!=data or native.jdlz(packed)!=data:
+        raise ValueError(f"GLOBALB runtime decompression verification failed: {why}")
+    if len(packed)>=len(data):
+        raise ValueError("GLOBALB compression did not reduce the bundle")
+    return packed
 
 
 def audit_stock(data):
@@ -180,7 +181,7 @@ def build(game,batch,database,runtime):
     stock=audit_stock(combined)
     if stock["types"]!=rt["types"]:
         raise ValueError("assembled type count differs from runtime")
-    packed=literal_jdlz(combined)
+    packed=pack_globalb(combined)
     if native.jdlz(packed)!=combined:
         raise ValueError("GLOBALB compression roundtrip failed")
     assets={"GLOBAL/GLOBALB.LZC":packed,"SPEED2.EXE":executable}
