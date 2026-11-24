@@ -1208,7 +1208,7 @@ void sub_0050c2c0(CPU *c){
 #define FECARS_PLAYER   0xab4cu
 #define STOCK_N         48u
 #define STOCK_SZ        0x1cu
-#define CARTYPES_N      46u           /* the builder walks 0x189E0 bytes of CarTypeInfo */
+uint32_t addon_cartype_count(void);  /* vinylpacks.c: count of the loaded table */
 void sub_004df9c0_orig(CPU *c);
 void sub_00516500(CPU *c);
 /* db's stock cars made again (as for a new profile) when one in use has a car type past the game's; lost: the handles
@@ -1216,10 +1216,10 @@ void sub_00516500(CPU *c);
  * and in garage.c as a profile's cars load (a Quick Race with such a car as its car, or any list of them, read past
  * CarTypeInfo too, and the original game's car lot ends the same way: the profile has the game's own list again) */
 int cars_stock_fix(CPU *c, uint32_t db, uint32_t *lost, int max){
-    uint32_t bad = STOCK_N; int n = 0;
+    uint32_t bad = STOCK_N, types = addon_cartype_count(); int n = 0;
     for (uint32_t i = 0; i < STOCK_N; i++){
         uint32_t r = db + i * STOCK_SZ;
-        if (!MR32(r + 0x10u) || MR32(r + 0x18u) < CARTYPES_N) continue;
+        if (!MR32(r + 0x10u) || MR32(r + 0x18u) < types) continue;
         if (bad == STOCK_N) bad = i;
         if (n < max) lost[n] = MR32(r + 8u);
         n++;
@@ -1228,7 +1228,7 @@ int cars_stock_fix(CPU *c, uint32_t db, uint32_t *lost, int max){
     uint32_t r = db + bad * STOCK_SZ;
     fprintf(stderr, "[cars] %s's stock car %u (handle 0x%08x) has car type %u, none of the game's %u (%d such): "
             "the stock cars made again, as for a new profile\n", db == G_FECARS ? "player 1" : "player 2", bad, MR32(r + 8u),
-            MR32(r + 0x18u), CARTYPES_N, n);
+            MR32(r + 0x18u), types, n);
     CPU save = *c;
     c->esp = (c->esp - 256u) & ~15u;
     PUSH32(0u);                           /* its argument, not read */
@@ -1339,7 +1339,7 @@ void sub_0061c600(CPU *c){
         clock_gettime(CLOCK_MONOTONIC, &t1);
         uint32_t h = MR32(c->esp + 4u), t = MR32(G_CARTYPES);
         char nm[16] = "?";
-        for (uint32_t k = 0; t && k < 46u; k++)
+        for (uint32_t k = 0; t && k < addon_cartype_count(); k++)
             if (MR32(t + k * 0x890u + 0xd0u) == h){
                 for (int i = 0; i < 15 && MR8(t + k * 0x890u + (uint32_t)i); i++){ nm[i] = (char)MR8(t + k * 0x890u + (uint32_t)i); nm[i + 1] = 0; }
                 break; }
