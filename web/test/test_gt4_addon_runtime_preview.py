@@ -24,6 +24,8 @@ class BoundsTest(unittest.TestCase):
         self.assertEqual(len(sites),15)
         self.assertEqual(sites[0][3],58*0x890)
         self.assertEqual(sites[-1][3],14558)
+        self.assertEqual([r[2] for r in sites[-3:]], [16000,16000,16000])
+        self.assertEqual([r[3] for r in sites[-3:]], [14557,14557,14558])
         self.assertEqual(len({r[0] for r in sites}),len(sites))
 
     def test_limits(self):
