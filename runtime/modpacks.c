@@ -454,7 +454,7 @@ int vinylpacks_have(void);                              /* ... the car part data
 #define HEAD_MAGIC    0x4448504du   /* "MPHD" */
 #define ADDON_MAX     40            /* (20 Customize cars, 10 slots, 6 presets a player) */
 #define CARTYPE_SZ    0x890u
-#define CARTYPES_N    46u           /* 0x610130 looks a car type up among these */
+uint32_t addon_cartype_count(void);  /* vinylpacks.c: count of the loaded table */
 #define KEY_AT(r, s)  ((r) + R_PARTS + 0xcu + 4u * (s))
 
 typedef struct { uint32_t w[8]; uint8_t wait; } MPart;  /* w: as the file has it; wait: one of g_wait's */
@@ -497,8 +497,9 @@ static int have_key(uint32_t key){ return mod_key(key) || (vinylpacks_key(key) &
 /* a car type's info (0x610130's search, without the call): its CarTypeInfo, 0 none; -1 not known yet (no car types) */
 int64_t modparts_cartype(uint32_t hash){
     uint32_t t = MR32(G_CARTYPES);
-    if (!guest_ok_bytes(t, CARTYPES_N * CARTYPE_SZ)) return -1;
-    for (uint32_t i = 0; hash && i < CARTYPES_N; i++) if (MR32(t + i * CARTYPE_SZ + 0xd0u) == hash) return t + i * CARTYPE_SZ;
+    uint32_t n = addon_cartype_count();
+    if (!guest_ok_bytes(t, n * CARTYPE_SZ)) return -1;
+    for (uint32_t i = 0; hash && i < n; i++) if (MR32(t + i * CARTYPE_SZ + 0xd0u) == hash) return t + i * CARTYPE_SZ;
     return 0;
 }
 /* a mod part's look-alike among the game's (tools/modpacks.py LOOKALIKES: a rim of the same size), 0: none */
