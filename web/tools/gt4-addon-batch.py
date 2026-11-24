@@ -149,7 +149,8 @@ def batch(source, game, output):
     next_index = len(stock)
     candidates = []
     # Prefer deterministic order for future shared index allocation.
-    archives = sorted(source.rglob("*.zip"), key=lambda p: str(p).casefold())
+    archives = sorted((p for p in source.rglob("*") if p.is_file() and p.suffix.casefold() == ".zip"), key=lambda p: str(p).casefold())
+    result["scanned_archives"] = [str(p) for p in archives]
     for path in archives:
         try:
             with zipfile.ZipFile(path) as z:
@@ -264,6 +265,8 @@ def batch(source, game, output):
                         result["errors"].append({"car":car,"archive":str(path),"error":str(e)})
         except (OSError, ValueError, KeyError, IndexError, struct.error, RuntimeError, zipfile.BadZipFile, SystemExit) as e:
             result["errors"].append({"archive":str(path),"error":str(e)})
+    result["missing_packs"] = sorted(set(("civic","bayview","olympic","regional")) - {kind for _,_,kind in candidates})
+    result["missing_vehicles"] = sorted(set(("CIVICEK9",) + BAYVIEW + OLYMPIC + REGIONAL) - seen)
     result["proposed_type_count"] = next_index if base is not None else None
     (output/"report.json").write_text(json.dumps(result,indent=2)+"\n")
     return result
@@ -286,10 +289,15 @@ def main():
         print("ERROR",row)
     if report["game_table_error"]:
         print("BASE TABLE ERROR:",report["game_table_error"])
+    for kind in report["missing_packs"]:
+        print("MISSING PACK:",kind)
+    for car in report["missing_vehicles"]:
+        print("MISSING VEHICLE:",car)
+    print("ZIP archives scanned:",len(report["scanned_archives"]))
     print("Staged:",len(report["vehicles"]),"Native previews:",sum("proposed_index" in r for r in report["vehicles"]))
     print("Report:",output/"report.json")
     print("NOT INSTALLED: original game and saves untouched.")
-    return int(not report["vehicles"] or bool(report["errors"]) or bool(report["game_table_error"])
+    return int(not report["vehicles"] or bool(report["missing_vehicles"]) or bool(report["errors"]) or bool(report["game_table_error"])
                or any(r["status"]=="staged_native_preview_rejected" for r in report["vehicles"]))
 
 
