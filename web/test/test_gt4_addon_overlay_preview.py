@@ -27,10 +27,14 @@ class OverlayTest(unittest.TestCase):
             self.assertEqual(after[tag][0],offset)
             self.assertEqual(after[tag][1],replacements[tag][8:] if tag in replacements else data)
 
-    def test_literal_jdlz_roundtrip(self):
-        for n in (1,7,8,9,16,17,2049):
-            data=bytes(i%251 for i in range(n))
-            self.assertEqual(mod.native.jdlz(mod.literal_jdlz(data)),data)
+    def test_runtime_compatible_jdlz_roundtrip(self):
+        for n in (128,256,2048,2049,8192):
+            data=(b"GLOBALB\0"* ((n+7)//8))[:n]
+            packed=mod.pack_globalb(data)
+            self.assertEqual(mod.native.jdlz(packed),data)
+            self.assertEqual(mod.jdlz_native(packed),(data,None))
+            self.assertLess(len(packed),len(data))
+
 
     def test_stock_filter(self):
         records=[]
