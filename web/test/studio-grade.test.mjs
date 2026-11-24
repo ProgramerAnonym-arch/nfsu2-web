@@ -44,3 +44,16 @@ test('the tone shader gates the optional grade behind a uniform', () => {
   assert.match(TONE, /smoothstep\(0\.15, 0\.65, luma\)/);
   assert.match(TONE, /return vec4f\(c, 1\.0\)/);
 });
+
+test('Studio neutral exposure uses a shared grade and skips no-op shoulder math', () => {
+  // The original mode still uses the game's direct path; only Studio at
+  // Exposure 1 and White Level 1 chooses the cheaper shader.
+  assert.match(TONE, /fn studio_grade\(c: vec3f\)/);
+  assert.match(TONE, /@fragment fn fs_studio_neutral/);
+  assert.match(TONE, /return vec4f\(studio_grade\(c\), 1\.0\)/);
+  assert.match(TONE, /c = studio_grade\(c\)/);
+  const encoder = source('web/src/gpu/encoder.ts');
+  assert.match(encoder, /const neutralStudio = studio && tone\[0\] === 1 && tone\[1\] === 1 && tone\[2\] === 0/);
+  assert.match(encoder, /entryPoint: neutralStudio \? 'fs_studio_neutral' : 'fs_tone'/);
+  assert.match(encoder, /if \(!neutralStudio\) \{[\s\S]*?this.queue.writeBuffer\(r.buf, 0, this.toneArgs\)/);
+});
