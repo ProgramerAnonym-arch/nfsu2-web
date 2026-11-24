@@ -16,6 +16,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  server-manifest:
+    name: Verify game-data server allowlist and manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CARGO_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 23.9.0
+      - name: Test retail Disc 2 SDATA in the server manifest
+        run: cargo test --manifest-path web/server-rs/Cargo.toml -p nfsu2-server app::manifest::tests -- --nocapture
+
   browser-ui:
     name: Typecheck, bundle and renderer unit tests
     runs-on: ubuntu-latest
