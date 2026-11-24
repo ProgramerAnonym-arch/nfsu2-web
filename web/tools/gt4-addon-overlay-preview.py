@@ -103,6 +103,54 @@ def audit_stock(data):
             "note":"Static eligibility only; original builder and career unlock logic must still be verified."}
 
 
+
+def stock_folder_refs(data, car):
+    """Conservative scan of the original CarTypeInfo identity/path fields.
+
+    This is not proof that no other game resource uses a folder. A folder
+    unused by the original type records may be staged only in the isolated
+    preview, never overwritten in the retail installation.
+    """
+    b,e=native.unique_chunk(data,native.TYPE_TAG)
+    start=b+(-b)%16
+    if e-start != 46*native.TYPE:
+        raise ValueError("folder audit requires the 46 original type records")
+    refs=[]
+    wanted=car.upper()
+    for at in range(start,e,native.TYPE):
+        row=data[at:at+native.TYPE]
+        name=native.name_at(row,0,32)
+        fields=[row[i:i+32].split(b"\0",1)[0].decode("ascii","replace").upper().replace("\\","/")
+                for i in range(0,0xc0,32)]
+        if wanted in fields[:2] or any(wanted in field.split("/") for field in fields[2:]):
+            refs.append(name)
+    return refs
+
+
+def folder_audit(game, base, cars):
+    folder=native.child(game,"CARS")
+    entries={}
+    for item in folder.iterdir():
+        entries.setdefault(item.name.upper(),[]).append(item)
+    report={}
+    for car in cars:
+        refs=stock_folder_refs(base,car)
+        existing=entries.get(car,[])
+        if len(existing)>1:
+            raise ValueError(f"ambiguous case-insensitive car folder: {car}")
+        if existing and not existing[0].is_dir():
+            raise ValueError(f"non-directory collision: {car}")
+        report[car]={"original_folder":str(existing[0]) if existing else None,
+                     "stock_type_refs":refs,
+                     "status":"stock_reference_conflict" if refs else
+                         ("existing_folder_no_stock_type_reference" if existing else "new_folder"),
+                     "original_files":[]}
+        if existing:
+            report[car]["original_files"]=[{"name":p.name,"bytes":p.stat().st_size}
+                for p in sorted(existing[0].iterdir()) if p.is_file()]
+    return report
+
+
 def build(game,batch,database,runtime):
     manifest=json.loads((batch/"report.json").read_text())
     dbreport=json.loads((database/"report.json").read_text())
@@ -136,15 +184,20 @@ def build(game,batch,database,runtime):
     if native.jdlz(packed)!=combined:
         raise ValueError("GLOBALB compression roundtrip failed")
     assets={"GLOBAL/GLOBALB.LZC":packed,"SPEED2.EXE":executable}
+    cars=[r["car"] for r in manifest["vehicles"] if r["status"]=="native_type_and_skin_preview"]
+    collisions=folder_audit(game,base,cars)
+    for car,info in collisions.items():
+        if info["status"]!="new_folder":
+            print("FOLDER AUDIT:",car,json.dumps(info,ensure_ascii=False))
+    conflicts={car:info["stock_type_refs"] for car,info in collisions.items() if info["stock_type_refs"]}
+    if conflicts:
+        raise ValueError(f"active original type/path conflicts: {conflicts}; separate asset mapping required")
     for row in manifest["vehicles"]:
         if row["status"]!="native_type_and_skin_preview":
             continue
         car=row["car"]
         if not re.fullmatch(r"[A-Z0-9_]{1,31}",car):
             raise ValueError("invalid staged vehicle name")
-        folder=native.child(game,"CARS")
-        if any(p.name.casefold()==car.casefold() for p in folder.iterdir()):
-            raise ValueError(f"addon folder would collide with original: {car}")
         prefix=f"CARS/{car}/"
         for f in row["files"]:
             name=f["path"]
@@ -166,9 +219,12 @@ def build(game,batch,database,runtime):
             "types":stock["types"],"parts":stats["new_parts"],"stock_list_audit":stock,
             "globalb_unpacked_bytes":len(combined),"globalb_packed_bytes":len(packed),
             "globalb_sha256":sha(combined),
+            "folder_audit":collisions,
+            "folder_audit_limit":"Existing folders without stock CarTypeInfo references are staged only. Other resource references must be checked before activating the overlay.",
             "files":[{"path":name,"bytes":len(data),"sha256":sha(data)} for name,data in sorted(assets.items())],
             "remaining":["stock-list builder, quantizers and car-lot/garage/save logic",
                          "collision volumes, sound mappings and frontend names/logos",
+                         "verify all resource references for preexisting car folders before activation",
                          "isolated lift/build and gameplay tests"]}
     return assets,report
 
