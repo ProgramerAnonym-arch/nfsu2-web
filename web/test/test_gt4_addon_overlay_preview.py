@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import struct
+import tempfile
 import sys
 import unittest
 
@@ -44,6 +45,36 @@ class OverlayTest(unittest.TestCase):
         audit=mod.audit_stock(data)
         self.assertEqual(audit["types"],3)
         self.assertEqual(audit["eligible_stock_names"],["C0"])
+
+
+
+    def test_folder_audit_distinguishes_exact_path_components(self):
+        records=[]
+        for i in range(46):
+            row=bytearray(mod.native.TYPE)
+            name=("IMPREZAWRX" if i==0 else f"STOCK{i}").encode()
+            row[:len(name)]=name
+            if i==0:
+                geometry=b"CARS\\IMPREZAWRX\\GEOMETRY.BIN"
+                row[0x40:0x40+len(geometry)]=geometry
+            if i==1:
+                geometry=b"CARS\\SHARED\\GEOMETRY.BIN"
+                row[0x40:0x40+len(geometry)]=geometry
+            struct.pack_into("<I",row,0x840,i)
+            records.append(row)
+        base=mod.db.block(mod.native.TYPE_TAG,b"\0"*8+b"".join(records))
+        self.assertEqual(mod.stock_folder_refs(base,"IMPREZA"),[])
+        self.assertEqual(mod.stock_folder_refs(base,"IMPREZAWRX"),["IMPREZAWRX"])
+        self.assertEqual(mod.stock_folder_refs(base,"SHARED"),["STOCK1"])
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)
+            (root/"CARS"/"IMPREZA").mkdir(parents=True)
+            (root/"CARS"/"IMPREZA"/"GEOMETRY.BIN").write_bytes(b"original")
+            audit=mod.folder_audit(root,base,["IMPREZA","SHARED","NEWCAR"])
+            self.assertEqual(audit["IMPREZA"]["status"],"existing_folder_no_stock_type_reference")
+            self.assertEqual(audit["SHARED"]["status"],"stock_reference_conflict")
+            self.assertEqual(audit["NEWCAR"]["status"],"new_folder")
+            self.assertEqual((root/"CARS"/"IMPREZA"/"GEOMETRY.BIN").read_bytes(),b"original")
 
 
 if __name__=="__main__":
