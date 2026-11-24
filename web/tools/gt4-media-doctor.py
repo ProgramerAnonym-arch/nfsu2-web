@@ -273,6 +273,18 @@ def game_directory(path):
     present = [n for n in ('CARS', 'GLOBAL', 'TRACKS') if n.casefold() in children and children[n.casefold()].is_dir()]
     absent = [n for n in ('CARS', 'GLOBAL', 'TRACKS') if n not in present]
     print('[mídia] Pastas de dados presentes: ' + (', '.join(present) or 'nenhuma'))
+    # SDATA is on retail Disc 2, outside COMPRESSED.ZIP. Without it, the
+    # game's sound archive is unavailable during initial menu loading.
+    sdata = children.get('sdata')
+    if sdata and sdata.is_dir():
+        archive = next((p for p in sdata.iterdir()
+                        if p.is_file() and p.name.casefold() == 'sdat.viv'), None)
+        if archive:
+            print(f'[mídia] SDATA/SDAT.VIV: presente ({archive.stat().st_size} bytes).')
+        else:
+            print('[mídia] SDATA/SDAT.VIV: ausente dentro de SDATA/.')
+    else:
+        print('[mídia] SDATA/: ausente; confira os arquivos soltos do Disco 2.')
     if absent:
         print('[mídia] Pastas ainda ausentes: ' + ', '.join(absent))
     if not exe or not exe.is_file():
