@@ -15,7 +15,7 @@ const bundled = await esbuild.build({ entryPoints: [path.join(web, 'src/gpu/wgsl
 const { TONE } = await import('data:text/javascript;base64,' +
   Buffer.from(bundled.outputFiles[0].text).toString('base64'));
 
-test('Studio shader compiles and renders original and graded pictures in Chromium WebGPU', { timeout: 120000 }, async () => {
+test('Studio shader compiles and renders original and graded pictures in Chromium WebGPU', { timeout: 120000 }, async t => {
   const browser = await chromium.launch({ headless: true, channel: 'chromium', args: [
     '--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=vulkan',
     '--use-vulkan=swiftshader', '--use-webgpu-adapter=swiftshader',
@@ -33,6 +33,15 @@ test('Studio shader compiles and renders original and graded pictures in Chromiu
     const context = await page.evaluate(() => ({secure: isSecureContext, gpu: !!navigator.gpu, url: location.href}));
     assert.equal(context.secure, true, 'WebGPU test must use a secure localhost context');
     assert.equal(context.gpu, true, 'WebGPU API unavailable: ' + JSON.stringify(context));
+    // Not every headless CI runner exposes a software Vulkan/WebGPU adapter.
+    // Record a skip (not a GPU validation success) when there is no adapter;
+    // NFSU2_REQUIRE_GPU=1 makes absence a hard failure for GPU-capable machines.
+    const hasAdapter = await page.evaluate(async () => !!(await navigator.gpu?.requestAdapter({ powerPreference: 'low-power' })));
+    if (!hasAdapter) {
+      if (process.env.NFSU2_REQUIRE_GPU === '1') assert.fail('WebGPU adapter unavailable on a required-GPU runner');
+      t.skip('No WebGPU adapter on this CI machine; shader output was NOT visually checked');
+      return;
+    }
     const output = await page.evaluate(async code => {
       if (!navigator.gpu) throw new Error('navigator.gpu unavailable in Chromium');
       const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'low-power' });
