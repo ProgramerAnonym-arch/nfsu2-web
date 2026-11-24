@@ -97,6 +97,19 @@ export const MS_RESOLVE = /* wgsl */`
 // so no edge shows).  tone: mult, white, knee, Studio flag (w). With tone [1,1,0], the exposure path is identity.
 export const TONE = COPY + /* wgsl */`
 @group(0) @binding(2) var<uniform> tone: vec4f;
+// Both Studio paths use exactly the same color treatment. Keeping it in a
+// shared WGSL function means the fast path cannot silently drift visually.
+fn studio_grade(c: vec3f) -> vec3f {
+  let luma = dot(c, vec3f(0.2126, 0.7152, 0.0722));
+  var graded = mix(vec3f(luma), c, 1.045);
+  graded = (graded - vec3f(0.5)) * 1.04 + vec3f(0.5);
+  let shadow = 1.0 - smoothstep(0.15, 0.65, luma);
+  let highlight = smoothstep(0.40, 0.92, luma);
+  graded *= vec3f(1.0 + 0.011 * highlight - 0.008 * shadow,
+                  1.0 + 0.002 * highlight,
+                  1.0 + 0.016 * shadow - 0.012 * highlight);
+  return clamp(graded, vec3f(0.0), vec3f(1.0));
+}
 @fragment fn fs_tone(i: BOut) -> @location(0) vec4f {
   let y = min(textureSample(src, smp, i.uv).rgb * tone.x, vec3f(1.0));
   let s = tone.z * tone.y;
@@ -104,20 +117,19 @@ export const TONE = COPY + /* wgsl */`
   let t = max(y - s, vec3f(0.0)) / (1.0 - s);
   let b = s + (tone.y - s) * (m * t) / (1.0 + (m - 1.0) * t);
   var c = select(y, b, y > vec3f(s));
-  // Browser-only Studio treatment: restrained contrast and saturation, cool shadows,
-  // slightly warm highlights. Disabled by default; the game's materials are unchanged.
+  // Browser-only Studio treatment. Disabled by default.
   if (tone.w > 0.5) {
-    let luma = dot(c, vec3f(0.2126, 0.7152, 0.0722));
-    var graded = mix(vec3f(luma), c, 1.045);
-    graded = (graded - vec3f(0.5)) * 1.04 + vec3f(0.5);
-    let shadow = 1.0 - smoothstep(0.15, 0.65, luma);
-    let highlight = smoothstep(0.40, 0.92, luma);
-    graded *= vec3f(1.0 + 0.011 * highlight - 0.008 * shadow,
-                    1.0 + 0.002 * highlight,
-                    1.0 + 0.016 * shadow - 0.012 * highlight);
-    c = clamp(graded, vec3f(0.0), vec3f(1.0));
+    c = studio_grade(c);
   }
   return vec4f(c, 1.0);
+}
+// When Exposure/White Level is neutral ([1, 1, 0]), fs_tone's shoulder
+// reduces to the identity. Skip its divisions and conditional selection in
+// the common Studio case. This uses the *same* grade as fs_tone, and leaves
+// the regular tone path in place for custom exposure.
+@fragment fn fs_studio_neutral(i: BOut) -> @location(0) vec4f {
+  let c = textureSample(src, smp, i.uv).rgb;
+  return vec4f(studio_grade(c), 1.0);
 }`;
 
 // Photo mode's picture (photo-picture.ts): fs_add takes the back buffer pixel for pixel into the average (the blend
