@@ -214,8 +214,8 @@ static void loader(CPU *c){
         fprintf(stderr, "[addon] loaded type table: %u records\n", ntypes);
         if (ntypes > 46u){
             /* Same six-bit encoding as retail; update the legal range. */
-            MR32(0x89d2dcu) = ntypes;
-            MR32(0x89d2e0u) = ntypes + 1u;
+            MR8(0x89d2dcu) = (uint8_t)ntypes;
+            MR8(0x89d2e0u) = (uint8_t)(ntypes + 1u);
         }
     }
     if (copy) MR32(c->esp) = chunk;                /* the caller's argument as it was (the loader's ret is behind esp) */
