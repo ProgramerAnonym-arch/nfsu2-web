@@ -26,7 +26,7 @@ use super::etag;
 use crate::options::within;
 
 /// what /data/ and /data-blocks/ serve: the top-level entries of the install folder that are the game's
-pub const GAME_ENTRIES: [&str; 21] = [
+pub const GAME_ENTRIES: [&str; 22] = [
     "speed2.exe",
     "server.dll",
     "server.cfg",
@@ -42,6 +42,7 @@ pub const GAME_ENTRIES: [&str; 21] = [
     "movies",
     "nis",
     "pfdata",
+    "sdata",     // retail Disc 2 audio archive: SDATA/SDAT.VIV (required at boot)
     "sound",
     "speech",
     "subtitles",
@@ -219,7 +220,7 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let p = |r: &str| d.path().join(r);
         std::fs::write(p("SPEED2.EXE"), "MZ fake").unwrap();
-        for dir in ["GLOBAL", "TRACKS/sub", "SAVE", "scripts", "Movies"] {
+        for dir in ["GLOBAL", "TRACKS/sub", "SDATA", "SAVE", "scripts", "Movies"] {
             std::fs::create_dir_all(p(dir)).unwrap();
         }
         std::fs::write(p("GLOBAL/Game.txt"), "inside").unwrap();
@@ -236,6 +237,7 @@ mod tests {
         std::fs::write(p(".hidden"), "SECRET").unwrap();
         std::fs::write(p("TRACKS/sub/L4RA.BUN"), [1u8; 3000]).unwrap();
         std::fs::write(p("Movies/INTRO.VP6"), [2u8; 50]).unwrap();
+        std::fs::write(p("SDATA/SDAT.VIV"), [3u8; 72]).unwrap();
         std::fs::write(p("unins000.dat"), "SECRET").unwrap();
         std::fs::write(p("SAVE/profile"), "SECRET").unwrap();
         std::fs::write(p("scripts/mod.ini"), "SECRET").unwrap();
@@ -264,6 +266,8 @@ mod tests {
             "GLOBAL/\u{e9}t\u{e9}",
             "Movies",
             "Movies/INTRO.VP6",
+            "SDATA",
+            "SDATA/SDAT.VIV",
             "SPEED2.EXE",
             "TRACKS",
             "TRACKS/sub",
@@ -274,6 +278,9 @@ mod tests {
         }
         assert_eq!(ps, want);
         assert_eq!(m.count, ps.len());
+        assert!(game_entry("SDATA"));
+        assert!(game_entry("sdata"));
+        assert!(ps.contains(&"SDATA/SDAT.VIV"));
         let exe = ps.iter().position(|p| *p == "SPEED2.EXE").unwrap();
         assert_eq!(v["files"][exe], serde_json::json!({ "p": "SPEED2.EXE", "s": 7, "m": 1_700_000_001u64 }));
         assert_eq!(v["blocks"], serde_json::json!({ "url": "/data-blocks/v2/", "size": 1048576, "max": 8 }));
@@ -297,7 +304,7 @@ mod tests {
         let script = r#"
 import fsp from 'node:fs/promises'; import path from 'node:path';
 const GAME_ENTRIES = ['speed2.exe', 'server.dll', 'server.cfg',
-  'cars', 'credits', 'frontend', 'global', 'langpacks', 'languages', 'memcard', 'movies', 'nis', 'pfdata', 'sound', 'speech', 'subtitles', 'tracks'];
+  'cars', 'credits', 'frontend', 'global', 'langpacks', 'languages', 'memcard', 'movies', 'nis', 'pfdata', 'sdata', 'sound', 'speech', 'subtitles', 'tracks'];
 const GAME_TOP = new Set(GAME_ENTRIES);
 const gameEntry = name => GAME_TOP.has(name.toLowerCase());
 const within = (a, b) => { const x = a.toLowerCase(), y = b.toLowerCase(); return x === y || x.startsWith(y.endsWith(path.sep) ? y : y + path.sep); };
