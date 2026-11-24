@@ -140,6 +140,27 @@ class TestIso(unittest.TestCase):
                 self.assertEqual(mod.game_directory(Path(tmp)), 2)
             self.assertIn('tem 5 bytes', out.getvalue())
 
+    def test_game_directory_audits_sdata_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / 'SPEED2.EXE').write_bytes(b'dummy')
+            for name in ('CARS', 'GLOBAL', 'TRACKS', 'SDATA'):
+                (folder / name).mkdir()
+            (folder / 'SDATA' / 'SDAT.VIV').write_bytes(b'audio archive')
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(mod.game_directory(folder), 2)
+            self.assertIn('SDATA/SDAT.VIV: presente (13 bytes)', out.getvalue())
+
+    def test_game_directory_warns_missing_sdata_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / 'SPEED2.EXE').write_bytes(b'dummy')
+            for name in ('CARS', 'GLOBAL', 'TRACKS'):
+                (folder / name).mkdir()
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(mod.game_directory(folder), 2)
+            self.assertIn('SDATA/: ausente', out.getvalue())
+
     def test_iso_invalid(self):
         with tempfile.TemporaryDirectory() as tmp:
             f = Path(tmp) / 'fake.iso'
