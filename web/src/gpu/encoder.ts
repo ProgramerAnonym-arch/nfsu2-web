@@ -606,16 +606,24 @@ export class Encoder {
       buf: d.createBuffer({ label: 'tone', size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }),
       pipes: new Map(), bgs: new WeakMap(),
     };
-    let p = r.pipes.get(format);
-    if (!p) r.pipes.set(format, p = d.createRenderPipeline({ label: `tone ${format}`, layout: d.createPipelineLayout({ bindGroupLayouts: [r.bgl] }),
-      vertex: { module: r.mod, entryPoint: 'vs_full' }, fragment: { module: r.mod, entryPoint: 'fs_tone', targets: [{ format }] },
+    // The game's default exposure is [1,1,0]. Studio can use a cheaper
+    // pixel shader with the same grade, bypassing no-op tone calculations.
+    // Custom Exposure/White Level still uses the regular tone shader.
+    const neutralStudio = studio && tone[0] === 1 && tone[1] === 1 && tone[2] === 0;
+    const pipeKey = `${format}:${neutralStudio ? 'studio-neutral' : 'tone'}`;
+    let p = r.pipes.get(pipeKey);
+    if (!p) r.pipes.set(pipeKey, p = d.createRenderPipeline({ label: `tone ${pipeKey}`, layout: d.createPipelineLayout({ bindGroupLayouts: [r.bgl] }),
+      vertex: { module: r.mod, entryPoint: 'vs_full' },
+      fragment: { module: r.mod, entryPoint: neutralStudio ? 'fs_studio_neutral' : 'fs_tone', targets: [{ format }] },
       primitive: { topology: 'triangle-list' } }));
     let m = r.bgs.get(src);
     if (!m) r.bgs.set(src, m = new Map());
     let g = m.get(smp);
     if (!g) m.set(smp, g = d.createBindGroup({ layout: r.bgl, entries: [{ binding: 0, resource: src }, { binding: 1, resource: smp }, { binding: 2, resource: { buffer: r.buf } }] }));
-    this.toneArgs.set([tone[0], tone[1], tone[2], studio ? 1 : 0]);
-    this.queue.writeBuffer(r.buf, 0, this.toneArgs);
+    if (!neutralStudio) {
+      this.toneArgs.set([tone[0], tone[1], tone[2], studio ? 1 : 0]);
+      this.queue.writeBuffer(r.buf, 0, this.toneArgs);
+    }
     const pass = enc.beginRenderPass({ colorAttachments: [{ view: dst, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }], timestampWrites: ts });
     pass.setPipeline(p);
     pass.setBindGroup(0, g);
