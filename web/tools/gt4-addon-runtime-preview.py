@@ -20,6 +20,9 @@ TYPE_SIZE = 0x890
 TYPE_SITES = (0x41AB83,0x5165BC,0x5207B3,0x609348,0x6099B1,0x636C24)
 COUNT_SITES = (0x5596CB,0x5EFC5A,0x610150,0x61C671,0x6372B4,0x513D1D)
 PART_SITES = (0x5EFC43,0x5F04A4,0x5F0675)
+# All three immediates are 16000 in the SHA-verified retail executable,
+# as observed by the owner on the first audit. This is not the DB row count.
+STOCK_PART_BOUND = 16000
 
 
 def plan(types, parts):
@@ -27,7 +30,7 @@ def plan(types, parts):
         raise ValueError("preview restricted to original quantizer bit widths")
     return ([(a,4,46*TYPE_SIZE,types*TYPE_SIZE,"type table byte size") for a in TYPE_SITES]
           + [(a,1,46,types,"type count") for a in COUNT_SITES]
-          + [(a,4,12167+(a==PART_SITES[-1]),parts+(a==PART_SITES[-1]),"part count") for a in PART_SITES])
+          + [(a,4,STOCK_PART_BOUND,parts+(a==PART_SITES[-1]),"part bound") for a in PART_SITES])
 
 
 def patch_bytes(data, pe, sites):
