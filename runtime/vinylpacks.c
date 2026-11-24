@@ -48,6 +48,9 @@ uint32_t modpacks_grow(uint32_t chunk);
 
 #define FN_LOADER     0x00636be0u
 #define CHUNK_PARTS   0x80034602u
+#define CHUNK_TYPES   0x34600u
+static uint32_t g_type_count = 46u;
+uint32_t addon_cartype_count(void){ return g_type_count; }
 #define ATTR_KEY      0x10c98090u
 #define ATTR_TEXTURE  0xfd35fe70u
 #define KIND_VINYL    0x32u
@@ -190,6 +193,14 @@ int vinylpacks_have(void){ return g_have; }
  * the copy's model names into pointers), with the mod packs' parts too */
 static void loader(CPU *c){
     uint32_t chunk = MR32(c->esp + 4u), copy = 0;
+    uint32_t ntypes = 0;
+    if (guest_ok_bytes(chunk, 8u) && MR32(chunk) == CHUNK_TYPES){
+        uint32_t size = MR32(chunk + 4u), pad = (16u - ((chunk + 8u) & 15u)) & 15u;
+        if (size >= pad && size <= 63u * 0x890u + 15u && (size - pad) % 0x890u == 0 && guest_ok_bytes(chunk, size + 8u)){
+            uint32_t n = (size - pad) / 0x890u;
+            if (n >= 46u) ntypes = n;
+        }
+    }
     if (guest_ok_bytes(chunk, 16u) && MR32(chunk) == CHUNK_PARTS && guest_ok_bytes(chunk, MR32(chunk + 4u) + 8u)){
         if (fileio_vinyl_packs() > 0) copy = grown(chunk);
         uint32_t m = modpacks_grow(copy ? copy : chunk);     /* the mods' parts at its end (runtime/modpacks.c) */
@@ -198,6 +209,15 @@ static void loader(CPU *c){
     }
     if (copy) MR32(c->esp + 4u) = copy;
     sub_00636be0(c);
+    if (ntypes && c->eax){
+        g_type_count = ntypes;
+        fprintf(stderr, "[addon] loaded type table: %u records\n", ntypes);
+        if (ntypes > 46u){
+            /* Same six-bit encoding as retail; update the legal range. */
+            MR32(0x89d2dcu) = ntypes;
+            MR32(0x89d2e0u) = ntypes + 1u;
+        }
+    }
     if (copy) MR32(c->esp) = chunk;                /* the caller's argument as it was (the loader's ret is behind esp) */
 }
 
