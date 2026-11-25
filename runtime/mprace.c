@@ -691,7 +691,15 @@ void mprace_perf_survey(CPU *c, uint32_t car){
     perf_table("own", car);
     uint8_t parts[PI_PARTS_SIZE]; uint32_t type = guest_rd32(pi + PI_TYPE);
     for (uint32_t i = 0; i < PI_PARTS_SIZE; i++) parts[i] = MR8(pi + PI_PARTS + i);
-    for (int t = 0; t < N_PLAYER_TYPES; t++){
+    extern uint32_t addon_cartype_count(void);
+    uint32_t ntypes = addon_cartype_count();
+    if (ntypes < N_PLAYER_TYPES || ntypes > 63u || !guest_ok(types, ntypes * CARTYPE_SIZE)){
+        fprintf(stderr, "[mprace] perf survey: invalid car type table (%u)\n", ntypes); return;
+    }
+    for (uint32_t t = 0; t < ntypes; t++){
+        uint32_t ct = types + t * CARTYPE_SIZE;
+        /* Same racer filter as the native stock-list audit. Skip traffic. */
+        if (!MR8(ct + 0x40u) || !(MR8(ct + 0xdau) & 2u) || MR32(ct + 0x844u) != 0u) continue;
         for (int lv = 0; lv <= 3; lv += 3){
             uint32_t a[3] = { (uint32_t)lv, 0xffffffffu, 0 };
             MR32(pi + PI_TYPE) = (uint32_t)t;
@@ -707,6 +715,7 @@ void mprace_perf_survey(CPU *c, uint32_t car){
     uint32_t a[3] = { 0, 1, 1 };
     call(c, FN_PI_BUILD, pi, 3, a);
     mprace_perf_log("perf survey, the car again", car);
+    fprintf(stderr, "[mprace] perf survey completed; type table %u; original type %u restored\n", ntypes, type);
 }
 
 /* ---- a car whose game data is edited ----------------------------------------------------------- */
