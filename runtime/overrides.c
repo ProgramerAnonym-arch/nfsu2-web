@@ -1241,10 +1241,14 @@ int cars_stock_fix(CPU *c, uint32_t db, uint32_t *lost, int max){
     fprintf(stderr, "[cars] %u stock cars\n", MR32(db + 0x540u));
     return n;
 }
+void gt4_dealer_begin(uint32_t db, uint32_t filter);
+void gt4_dealer_end(void);
 void sub_004df9c0(CPU *c){
     uint32_t who = MR32(c->ecx + 0xecu), lost[1];
     if (who < 2u) cars_stock_fix(c, G_FECARS + who * FECARS_PLAYER, lost, 0);
+    if (who == 0u) gt4_dealer_begin(G_FECARS, MR32(c->esp + 4u));
     sub_004df9c0_orig(c);
+    if (who == 0u) gt4_dealer_end();
 }
 
 /* --- sub_0073b900: the tick of the music's event system -------------------
