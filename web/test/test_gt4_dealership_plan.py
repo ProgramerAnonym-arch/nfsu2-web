@@ -33,6 +33,14 @@ class DealershipTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             mod.dealerships(r)
 
+    def test_native_brand_aliases_preserve_identity(self):
+        r=source()
+        r["catalog"][48]["manufacturer"]="CORVETTE"
+        r["catalog"][57]["manufacturer"]="OLDDODGE"
+        groups={g["manufacturer"]:g for g in mod.dealerships(r)}
+        self.assertEqual(groups["CHEVROLET"]["vehicles"][0]["id"],"CORVETTEC5")
+        self.assertEqual(groups["DODGE"]["vehicles"][0]["native_manufacturer"],"OLDDODGE")
+
     def test_missing_manufacturer_is_not_invented(self):
         r=source()
         r["catalog"][46]["manufacturer"]=""
