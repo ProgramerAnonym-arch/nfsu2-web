@@ -17,7 +17,8 @@ ADDONS=("CIVICEK9","CIVICEG","CORVETTEC5","INFIFX45","GS300","IMPREZA",
         "INTEGRA","LANCER","NEONC","NSX","S2000","CHARGER")
 # Correct known spelling variants only. Preserve native brand distinctions
 # such as Honda/Acura and Nissan/Infiniti.
-ALIASES={"PEUGOT":"PEUGEOT","VOLKSWAGEN":"VOLKSWAGEN","VW":"VOLKSWAGEN"}
+ALIASES={"PEUGOT":"PEUGEOT","VOLKSWAGEN":"VOLKSWAGEN","VW":"VOLKSWAGEN",
+         "CORVETTE":"CHEVROLET","OLDDODGE":"DODGE"}
 
 
 def dealerships(report):
